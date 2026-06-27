@@ -35,7 +35,23 @@ class _ReportesScreenState extends State<ReportesScreen> {
         .where('estado', isEqualTo: 'Activo')
         .orderBy('fecha')
         .get();
-    return snapshot.docs;
+    // Ordenar por dia para que el reporte coincida con el libro.
+    final docs = [...snapshot.docs]..sort((a, b) {
+      final ma = a.data() as Map<String, dynamic>;
+      final mb = b.data() as Map<String, dynamic>;
+      final sa = ma['esSaldoAnterior'] == true ? 0 : 1;
+      final sb = mb['esSaldoAnterior'] == true ? 0 : 1;
+      if (sa != sb) return sa - sb;
+      final diaA = (ma['dia'] ?? 0) as int;
+      final diaB = (mb['dia'] ?? 0) as int;
+      if (diaA != diaB) return diaA.compareTo(diaB);
+      final fa = ma['fecha'];
+      final fb = mb['fecha'];
+      if (fa is Timestamp && fb is Timestamp) return fa.compareTo(fb);
+      return 0;
+    });
+    return docs;
+
   }
 
   Future<void> _exportarPDF(List<QueryDocumentSnapshot> docs) async {

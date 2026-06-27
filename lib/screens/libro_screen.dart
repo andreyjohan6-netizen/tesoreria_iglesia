@@ -31,6 +31,23 @@ class _LibroScreenState extends State<LibroScreen> {
     return DateTime(anio, mes + 1, 0).day;
   }
 
+  /// Orden: saldo anterior primero, luego por dia, luego por fecha.
+  static int compararMovimientos(QueryDocumentSnapshot a, QueryDocumentSnapshot b) {
+    final ma = a.data() as Map<String, dynamic>;
+    final mb = b.data() as Map<String, dynamic>;
+    final sa = ma['esSaldoAnterior'] == true ? 0 : 1;
+    final sb = mb['esSaldoAnterior'] == true ? 0 : 1;
+    if (sa != sb) return sa - sb;
+    final diaA = (ma['dia'] ?? 0) as int;
+    final diaB = (mb['dia'] ?? 0) as int;
+    if (diaA != diaB) return diaA.compareTo(diaB);
+    final fa = ma['fecha'];
+    final fb = mb['fecha'];
+    if (fa is Timestamp && fb is Timestamp) return fa.compareTo(fb);
+    return 0;
+  }
+
+
   @override
   void initState() {
     super.initState();
@@ -316,6 +333,8 @@ class _LibroScreenState extends State<LibroScreen> {
                 'fecha': FieldValue.serverTimestamp(),
               });
 
+              await _recalcularSaldos();
+
               if (ctx.mounted) Navigator.pop(ctx);
             },
             style: ElevatedButton.styleFrom(
@@ -330,26 +349,27 @@ class _LibroScreenState extends State<LibroScreen> {
   }
 
   void _mostrarFinalizarLibro(List<QueryDocumentSnapshot> movimientos) {
-    if (_libroFinalizado) {
+if (_libroFinalizado) {
       _mostrarLibroFinalizado();
       return;
     }
 
     double totalIngresos = 0;
     double totalEgresos = 0;
-    double saldoFinal = 0;
+    double saldoAnterior = 0;
 
     for (var doc in movimientos) {
       final m = doc.data() as Map<String, dynamic>;
-      if (m['estado'] == 'Activo' && m['esSaldoAnterior'] != true) {
+      if (m['esSaldoAnterior'] == true) {
+        saldoAnterior = (m['ingreso'] ?? 0).toDouble();
+      } else if (m['estado'] == 'Activo') {
         if (m['ingreso'] != null) totalIngresos += m['ingreso'].toDouble();
         if (m['egreso'] != null) totalEgresos += m['egreso'].toDouble();
       }
     }
 
-    if (movimientos.isNotEmpty) {
-      saldoFinal = (movimientos.last['saldo'] ?? 0).toDouble();
-    }
+    final double saldoFinal = saldoAnterior + totalIngresos - totalEgresos;
+
 
     showDialog(
       context: context,
@@ -441,10 +461,13 @@ class _LibroScreenState extends State<LibroScreen> {
         .orderBy('fecha')
         .get();
 
-    double saldo = 0;
+     double saldo = 0;
     final batch = _db.batch();
 
-    for (final doc in snapshot.docs) {
+    final docs = [...snapshot.docs]..sort(compararMovimientos);
+
+    for (final doc in docs) {
+
       final m = doc.data();
       final esSaldoAnterior = m['esSaldoAnterior'] == true;
       final estado = m['estado'] ?? 'Activo';
@@ -724,6 +747,8 @@ class _LibroScreenState extends State<LibroScreen> {
             .snapshots(),
         builder: (context, snapshot) {
           final movimientos = snapshot.hasData ? snapshot.data!.docs : <QueryDocumentSnapshot>[];
+          final movimientosOrdenados = [...movimientos]..sort(compararMovimientos);
+
 
           return Column(
             children: [
@@ -827,7 +852,8 @@ class _LibroScreenState extends State<LibroScreen> {
                                   DataColumn(label: Text('Folio', style: TextStyle(color: Colors.white))),
                                   DataColumn(label: Text('Estado', style: TextStyle(color: Colors.white))),
                                 ],
-                                rows: movimientos.map((doc) {
+                                                                rows: movimientosOrdenados.map((doc) {
+
                                   final m = doc.data() as Map<String, dynamic>;
                                   final estado = m['estado'] ?? 'Activo';
                                   final esSaldoAnterior = m['esSaldoAnterior'] == true;

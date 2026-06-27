@@ -239,14 +239,18 @@ class _ResumenScreenState extends State<ResumenScreen> {
 
           if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
             final docs = snapshot.data!.docs;
+            double saldoAnterior = 0;
             for (var doc in docs) {
               final m = doc.data() as Map<String, dynamic>;
-              if (m['estado'] == 'Activo' && m['esSaldoAnterior'] != true) {
+              if (m['esSaldoAnterior'] == true) {
+                saldoAnterior = (m['ingreso'] ?? 0).toDouble();
+              } else if (m['estado'] == 'Activo') {
                 if (m['ingreso'] != null) ingresos += m['ingreso'].toDouble();
                 if (m['egreso'] != null) egresos += m['egreso'].toDouble();
               }
             }
-            saldo = (docs.last['saldo'] ?? 0).toDouble();
+            saldo = saldoAnterior + ingresos - egresos;
+
             ultimos = docs.reversed.take(5).toList();
           }
 
