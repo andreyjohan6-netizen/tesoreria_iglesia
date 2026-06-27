@@ -43,7 +43,14 @@ class Permisos {
   }
 }
 
-/// Servicio encargado de resolver el rol de un usuario.
+/// Resultado de verificar el acceso de un usuario.
+class Acceso {
+  final bool autorizado;
+  final Rol rol;
+  const Acceso({required this.autorizado, required this.rol});
+}
+
+/// Servicio encargado de resolver el acceso y el rol de un usuario.
 class RolService {
   RolService._();
 
@@ -61,27 +68,39 @@ class RolService {
     }
   }
 
-  /// Carga el rol del usuario a partir de su correo.
-  static Future<Rol> cargarRol(String? email) async {
-    if (email == null) return Rol.pastor;
+  /// Verifica si un correo esta autorizado y con que rol.
+  ///
+  /// - El admin principal SIEMPRE esta autorizado como admin.
+  /// - Si el correo esta en `usuarios_autorizados`, se autoriza con su rol.
+  /// - En cualquier otro caso, NO esta autorizado.
+  static Future<Acceso> verificarAcceso(String? email) async {
+    if (email == null) {
+      return const Acceso(autorizado: false, rol: Rol.pastor);
+    }
     final correo = email.trim().toLowerCase();
 
-    if (correo == adminEmail) return Rol.admin;
-
-    try {
-      final snap = await FirebaseFirestore.instance
-          .collection('usuarios_autorizados')
-          .where('email', isEqualTo: correo)
-          .limit(1)
-          .get();
-
-      if (snap.docs.isNotEmpty) {
-        return rolDesdeTexto(snap.docs.first.data()['rol']?.toString());
-      }
-    } catch (_) {
-      // Ante un error de red, devolvemos el rol mas restrictivo.
+    if (correo == adminEmail) {
+      return const Acceso(autorizado: true, rol: Rol.admin);
     }
-    return Rol.pastor;
+
+    final snap = await FirebaseFirestore.instance
+        .collection('usuarios_autorizados')
+        .where('email', isEqualTo: correo)
+        .limit(1)
+        .get();
+
+    if (snap.docs.isNotEmpty) {
+      final rol = rolDesdeTexto(snap.docs.first.data()['rol']?.toString());
+      return Acceso(autorizado: true, rol: rol);
+    }
+
+    return const Acceso(autorizado: false, rol: Rol.pastor);
+  }
+
+  /// Carga solo el rol (sin bloquear). Se mantiene por compatibilidad.
+  static Future<Rol> cargarRol(String? email) async {
+    final acceso = await verificarAcceso(email);
+    return acceso.rol;
   }
 }
 

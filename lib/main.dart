@@ -62,18 +62,22 @@ class _TesoreriaAppState extends State<TesoreriaApp> {
             );
           }
           if (snapshot.hasData) {
-            // Usuario autenticado: cargamos su rol antes de mostrar la app.
-            return FutureBuilder<Rol>(
-              future: RolService.cargarRol(snapshot.data!.email),
-              builder: (context, rolSnapshot) {
-                if (rolSnapshot.connectionState == ConnectionState.waiting) {
+            // Usuario autenticado: verificamos si esta autorizado y su rol.
+            return FutureBuilder<Acceso>(
+              future: RolService.verificarAcceso(snapshot.data!.email),
+              builder: (context, accesoSnapshot) {
+                if (accesoSnapshot.connectionState == ConnectionState.waiting) {
                   return const Scaffold(
                     body: Center(child: CircularProgressIndicator()),
                   );
                 }
-                final rol = rolSnapshot.data ?? Rol.pastor;
+                final acceso = accesoSnapshot.data;
+                // Si no se pudo verificar o no esta autorizado, se bloquea.
+                if (acceso == null || !acceso.autorizado) {
+                  return NoAutorizadoScreen(correo: snapshot.data!.email);
+                }
                 return RolProvider(
-                  permisos: Permisos(rol),
+                  permisos: Permisos(acceso.rol),
                   child: const MainScreen(),
                 );
               },
@@ -122,6 +126,80 @@ class _MainScreenState extends State<MainScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Reportes'),
           BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Configuracion'),
         ],
+      ),
+    );
+  }
+}
+
+/// Pantalla mostrada cuando un usuario autenticado NO esta autorizado.
+class NoAutorizadoScreen extends StatelessWidget {
+  final String? correo;
+  const NoAutorizadoScreen({super.key, this.correo});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.indigo,
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.lock_person, size: 80, color: Colors.white),
+              const SizedBox(height: 16),
+              const Text(
+                'Acceso no autorizado',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  children: [
+                    if (correo != null)
+                      Text(
+                        correo!,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.center,
+                      ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Tu cuenta no esta autorizada para usar esta aplicacion. '
+                      'Pide al administrador que agregue tu correo en la seccion '
+                      'de usuarios autorizados.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.black87),
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () => FirebaseAuth.instance.signOut(),
+                        icon: const Icon(Icons.logout),
+                        label: const Text('Volver al inicio de sesion'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.indigo,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
