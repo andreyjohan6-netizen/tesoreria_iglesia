@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/permisos.dart';
 
 class LibroScreen extends StatefulWidget {
   const LibroScreen({super.key});
@@ -430,8 +431,265 @@ class _LibroScreenState extends State<LibroScreen> {
     );
   }
 
+  /// Recalcula el saldo acumulado de TODOS los movimientos del mes activo.
+  /// Los movimientos anulados no afectan el saldo.
+  Future<void> _recalcularSaldos() async {
+    final snapshot = await _db
+        .collection('movimientos')
+        .where('mes', isEqualTo: _mesSeleccionado)
+        .where('anio', isEqualTo: _anioSeleccionado)
+        .orderBy('fecha')
+        .get();
+
+    double saldo = 0;
+    final batch = _db.batch();
+
+    for (final doc in snapshot.docs) {
+      final m = doc.data();
+      final esSaldoAnterior = m['esSaldoAnterior'] == true;
+      final estado = m['estado'] ?? 'Activo';
+
+      if (esSaldoAnterior) {
+        saldo = (m['ingreso'] ?? 0).toDouble();
+      } else if (estado == 'Activo') {
+        final ingreso = (m['ingreso'] ?? 0).toDouble();
+        final egreso = (m['egreso'] ?? 0).toDouble();
+        saldo = saldo + ingreso - egreso;
+      }
+
+      batch.update(doc.reference, {'saldo': saldo});
+    }
+
+    await batch.commit();
+  }
+
+  /// Menu de acciones sobre un movimiento (solo admin).
+  void _mostrarAccionesMovimiento(QueryDocumentSnapshot doc) {
+    final m = doc.data() as Map<String, dynamic>;
+    final estado = m['estado'] ?? 'Activo';
+    final detalle = m['detalle'] ?? 'Movimiento';
+
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                detalle,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.edit, color: Colors.indigo),
+              title: const Text('Editar'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _editarMovimiento(doc);
+              },
+            ),
+            if (estado == 'Activo')
+              ListTile(
+                leading: const Icon(Icons.block, color: Colors.orange),
+                title: const Text('Anular'),
+                subtitle: const Text('No contara en los totales ni el saldo'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _confirmarAnular(doc);
+                },
+              )
+            else
+              ListTile(
+                leading: const Icon(Icons.check_circle, color: Colors.green),
+                title: const Text('Reactivar'),
+                subtitle: const Text('Volvera a contar en los totales'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _reactivarMovimiento(doc);
+                },
+              ),
+            ListTile(
+              leading: const Icon(Icons.delete_forever, color: Colors.red),
+              title: const Text('Eliminar'),
+              subtitle: const Text('Borra el movimiento de forma permanente'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _confirmarEliminar(doc);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmarAnular(QueryDocumentSnapshot doc) async {
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Anular movimiento'),
+        content: const Text(
+          'El movimiento quedara marcado como anulado y dejara de sumar o restar al saldo. Podras reactivarlo despues. Deseas continuar?',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
+            child: const Text('Anular'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmado != true) return;
+
+    await doc.reference.update({'estado': 'Anulado'});
+    await _recalcularSaldos();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Movimiento anulado'), backgroundColor: Colors.orange),
+      );
+    }
+  }
+
+  Future<void> _reactivarMovimiento(QueryDocumentSnapshot doc) async {
+    await doc.reference.update({'estado': 'Activo'});
+    await _recalcularSaldos();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Movimiento reactivado'), backgroundColor: Colors.green),
+      );
+    }
+  }
+
+  Future<void> _confirmarEliminar(QueryDocumentSnapshot doc) async {
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Eliminar movimiento'),
+        content: const Text(
+          'Esta accion borra el movimiento de forma permanente y no se puede deshacer. Deseas continuar?',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmado != true) return;
+
+    await doc.reference.delete();
+    await _recalcularSaldos();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Movimiento eliminado'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  void _editarMovimiento(QueryDocumentSnapshot doc) {
+    final m = doc.data() as Map<String, dynamic>;
+    final esIngreso = m['ingreso'] != null;
+    final montoActual = (esIngreso ? m['ingreso'] : m['egreso'] ?? 0).toDouble();
+
+    final detalleCtrl = TextEditingController(text: m['detalle']?.toString() ?? '');
+    final montoCtrl = TextEditingController(text: montoActual.toStringAsFixed(0));
+    final diaCtrl = TextEditingController(text: (m['dia'] ?? 1).toString());
+    final maxDias = _diasEnMes(_mesSeleccionado, _anioSeleccionado);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(esIngreso ? 'Editar Ingreso' : 'Editar Egreso'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: diaCtrl,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'Dia (1 - $maxDias)',
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: detalleCtrl,
+              decoration: const InputDecoration(labelText: 'Detalle', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: montoCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Monto', border: OutlineInputBorder()),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          ElevatedButton(
+            onPressed: () async {
+              final dia = int.tryParse(diaCtrl.text) ?? 0;
+              if (dia < 1 || dia > maxDias) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('El dia debe estar entre 1 y $maxDias'), backgroundColor: Colors.red),
+                );
+                return;
+              }
+              final monto = double.tryParse(montoCtrl.text) ?? 0;
+              if (monto <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('El monto debe ser mayor a 0'), backgroundColor: Colors.red),
+                );
+                return;
+              }
+              if (detalleCtrl.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('El detalle no puede estar vacio'), backgroundColor: Colors.red),
+                );
+                return;
+              }
+
+              await doc.reference.update({
+                'dia': dia,
+                'detalle': detalleCtrl.text.trim(),
+                'ingreso': esIngreso ? monto : null,
+                'egreso': esIngreso ? null : monto,
+              });
+              await _recalcularSaldos();
+
+              if (ctx.mounted) Navigator.pop(ctx);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Movimiento actualizado'), backgroundColor: Colors.green),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: esIngreso ? Colors.green : Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final permisos = RolProvider.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? Colors.grey.shade900 : const Color(0xFFF5F5F5);
     final cardColor = isDark ? Colors.grey.shade800 : Colors.white;
@@ -508,7 +766,7 @@ class _LibroScreenState extends State<LibroScreen> {
                       },
                     ),
                     const Spacer(),
-                    if (movimientos.isNotEmpty && !_libroFinalizado)
+                    if (movimientos.isNotEmpty && !_libroFinalizado && permisos.puedeFinalizarLibro)
                       TextButton.icon(
                         onPressed: () => _mostrarFinalizarLibro(movimientos),
                         icon: const Icon(Icons.lock, color: Colors.indigo, size: 16),
@@ -525,6 +783,27 @@ class _LibroScreenState extends State<LibroScreen> {
                   ],
                 ),
               ),
+              if (permisos.puedeEditarMovimientos && movimientos.isNotEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  color: Colors.indigo.withOpacity(0.05),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.touch_app, size: 14, color: Colors.indigo),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Toca una fila para editar, anular o eliminar',
+                          style: TextStyle(
+                            color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               Expanded(
                 child: snapshot.connectionState == ConnectionState.waiting
                     ? const Center(child: CircularProgressIndicator())
@@ -536,6 +815,7 @@ class _LibroScreenState extends State<LibroScreen> {
                             child: SingleChildScrollView(
                               scrollDirection: Axis.horizontal,
                               child: DataTable(
+                                showCheckboxColumn: false,
                                 headingRowColor: WidgetStateProperty.all(Colors.indigo),
                                 dataRowColor: WidgetStateProperty.all(cardColor),
                                 columns: const [
@@ -551,7 +831,12 @@ class _LibroScreenState extends State<LibroScreen> {
                                   final m = doc.data() as Map<String, dynamic>;
                                   final estado = m['estado'] ?? 'Activo';
                                   final esSaldoAnterior = m['esSaldoAnterior'] == true;
+                                  final puedeAccionar =
+                                      permisos.puedeEditarMovimientos && !esSaldoAnterior;
                                   return DataRow(
+                                    onSelectChanged: puedeAccionar
+                                        ? (_) => _mostrarAccionesMovimiento(doc)
+                                        : null,
                                     color: WidgetStateProperty.all(
                                       esSaldoAnterior
                                           ? Colors.indigo.withOpacity(0.15)
@@ -579,7 +864,7 @@ class _LibroScreenState extends State<LibroScreen> {
                                         m['egreso'] != null ? _formatear(m['egreso'].toDouble()) : '-',
                                         style: const TextStyle(color: Colors.red),
                                       )),
-                                      DataCell(Text(_formatear(m['saldo'].toDouble()), style: TextStyle(color: textColor))),
+                                      DataCell(Text(_formatear((m['saldo'] ?? 0).toDouble()), style: TextStyle(color: textColor))),
                                       DataCell(Text(m['folio']?.toString() ?? '-', style: TextStyle(color: textColor))),
                                       DataCell(Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -614,39 +899,41 @@ class _LibroScreenState extends State<LibroScreen> {
           );
         },
       ),
-      bottomSheet: Container(
-        color: cardColor,
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: () => _mostrarFormulario(esIngreso: true),
-                icon: const Icon(Icons.add),
-                label: const Text('Ingreso'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _libroFinalizado ? Colors.grey : Colors.green,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
+      bottomSheet: permisos.puedeIngresarEgresar
+          ? Container(
+              color: cardColor,
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => _mostrarFormulario(esIngreso: true),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Ingreso'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _libroFinalizado ? Colors.grey : Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => _mostrarFormulario(esIngreso: false),
+                      icon: const Icon(Icons.remove),
+                      label: const Text('Egreso'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _libroFinalizado ? Colors.grey : Colors.red,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: () => _mostrarFormulario(esIngreso: false),
-                icon: const Icon(Icons.remove),
-                label: const Text('Egreso'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _libroFinalizado ? Colors.grey : Colors.red,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+            )
+          : null,
     );
   }
 }

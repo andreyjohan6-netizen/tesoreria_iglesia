@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:convert';
+import '../services/permisos.dart';
 
 class ResumenScreen extends StatefulWidget {
   const ResumenScreen({super.key});
@@ -169,6 +170,7 @@ class _ResumenScreenState extends State<ResumenScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final permisos = RolProvider.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? Colors.grey.shade900 : const Color(0xFFF5F5F5);
     final cardColor = isDark ? Colors.grey.shade800 : Colors.white;
@@ -244,7 +246,7 @@ class _ResumenScreenState extends State<ResumenScreen> {
                 if (m['egreso'] != null) egresos += m['egreso'].toDouble();
               }
             }
-            saldo = docs.last['saldo'].toDouble();
+            saldo = (docs.last['saldo'] ?? 0).toDouble();
             ultimos = docs.reversed.take(5).toList();
           }
 
@@ -415,35 +417,36 @@ class _ResumenScreenState extends State<ResumenScreen> {
 
                 const SizedBox(height: 24),
 
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () => _mostrarFormulario(esIngreso: true),
-                        icon: const Icon(Icons.add),
-                        label: const Text('Ingreso'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _libroFinalizado ? Colors.grey : Colors.green,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                if (permisos.puedeIngresarEgresar)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => _mostrarFormulario(esIngreso: true),
+                          icon: const Icon(Icons.add),
+                          label: const Text('Ingreso'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _libroFinalizado ? Colors.grey : Colors.green,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () => _mostrarFormulario(esIngreso: false),
-                        icon: const Icon(Icons.remove),
-                        label: const Text('Egreso'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _libroFinalizado ? Colors.grey : Colors.red,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => _mostrarFormulario(esIngreso: false),
+                          icon: const Icon(Icons.remove),
+                          label: const Text('Egreso'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _libroFinalizado ? Colors.grey : Colors.red,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
                 const SizedBox(height: 80),
               ],
             ),

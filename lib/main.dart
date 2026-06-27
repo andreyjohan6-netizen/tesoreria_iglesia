@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
+import 'services/permisos.dart';
 import 'screens/resumen_screen.dart';
 import 'screens/libro_screen.dart';
 import 'screens/reportes_screen.dart';
@@ -61,7 +62,22 @@ class _TesoreriaAppState extends State<TesoreriaApp> {
             );
           }
           if (snapshot.hasData) {
-            return const MainScreen();
+            // Usuario autenticado: cargamos su rol antes de mostrar la app.
+            return FutureBuilder<Rol>(
+              future: RolService.cargarRol(snapshot.data!.email),
+              builder: (context, rolSnapshot) {
+                if (rolSnapshot.connectionState == ConnectionState.waiting) {
+                  return const Scaffold(
+                    body: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                final rol = rolSnapshot.data ?? Rol.pastor;
+                return RolProvider(
+                  permisos: Permisos(rol),
+                  child: const MainScreen(),
+                );
+              },
+            );
           }
           return const LoginScreen();
         },
