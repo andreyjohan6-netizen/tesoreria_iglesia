@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:convert';
 import '../services/permisos.dart';
+import '../services/movimientos_service.dart';
+
 
 class ResumenScreen extends StatefulWidget {
   const ResumenScreen({super.key});
@@ -91,6 +93,7 @@ class _ResumenScreenState extends State<ResumenScreen> {
     final detalleCtrl = TextEditingController();
     final montoCtrl = TextEditingController();
     final diaCtrl = TextEditingController();
+    final maxDias = DateTime(_anio, _mes + 1, 0).day;
 
     showDialog(
       context: context,
@@ -102,7 +105,10 @@ class _ResumenScreenState extends State<ResumenScreen> {
             TextField(
               controller: diaCtrl,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Dia', border: OutlineInputBorder()),
+              decoration: InputDecoration(
+                labelText: 'Dia (1 - $maxDias)',
+                border: const OutlineInputBorder(),
+              ),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -124,36 +130,35 @@ class _ResumenScreenState extends State<ResumenScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
+              final dia = int.tryParse(diaCtrl.text) ?? 0;
+              if (dia < 1 || dia > maxDias) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('El dia debe estar entre 1 y $maxDias'), backgroundColor: Colors.red),
+                );
+                return;
+              }
               final monto = double.tryParse(montoCtrl.text) ?? 0;
-              final dia = int.tryParse(diaCtrl.text) ?? 1;
-
-              final snapshot = await _db
-                  .collection('movimientos')
-                  .orderBy('fecha', descending: true)
-                  .limit(1)
-                  .get();
-
-              double ultimoSaldo = 0;
-              if (snapshot.docs.isNotEmpty) {
-                ultimoSaldo = (snapshot.docs.first['saldo'] ?? 0).toDouble();
+              if (monto <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('El monto debe ser mayor a 0'), backgroundColor: Colors.red),
+                );
+                return;
+              }
+              if (detalleCtrl.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('El detalle no puede estar vacio'), backgroundColor: Colors.red),
+                );
+                return;
               }
 
-              final nuevoSaldo = esIngreso ? ultimoSaldo + monto : ultimoSaldo - monto;
-
-              await _db.collection('movimientos').add({
-                'folio': esIngreso ? 'I-auto' : 'E-auto',
-                'folioNumero': 0,
-                'tipoFolio': esIngreso ? 'ingreso' : 'egreso',
-                'dia': dia,
-                'detalle': detalleCtrl.text,
-                'ingreso': esIngreso ? monto : null,
-                'egreso': esIngreso ? null : monto,
-                'saldo': nuevoSaldo,
-                'estado': 'Activo',
-                'mes': _mes,
-                'anio': _anio,
-                'fecha': FieldValue.serverTimestamp(),
-              });
+              await MovimientosService.agregarMovimiento(
+                esIngreso: esIngreso,
+                dia: dia,
+                detalle: detalleCtrl.text.trim(),
+                monto: monto,
+                mes: _mes,
+                anio: _anio,
+              );
 
               if (ctx.mounted) Navigator.pop(ctx);
             },
@@ -167,6 +172,7 @@ class _ResumenScreenState extends State<ResumenScreen> {
       ),
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
