@@ -17,30 +17,70 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _error;
 
   Future<void> _login() async {
+    final email = _emailCtrl.text.trim();
+    final pass = _passCtrl.text.trim();
+
+    // Validacion de campos vacios antes de llamar a Firebase.
+    if (email.isEmpty || pass.isEmpty) {
+      setState(() => _error = 'Ingresa tu correo y tu contrasena');
+      return;
+    }
+
     setState(() {
       _cargando = true;
       _error = null;
     });
 
     try {
-      if (_recordarme) {
-        await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
-      } else {
-        await FirebaseAuth.instance.setPersistence(Persistence.SESSION);
-      }
+      // setPersistence solo aplica en web; si falla no debe bloquear el login.
+      try {
+        await FirebaseAuth.instance.setPersistence(
+          _recordarme ? Persistence.LOCAL : Persistence.SESSION,
+        );
+      } catch (_) {}
 
       await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailCtrl.text.trim(),
-        password: _passCtrl.text.trim(),
+        email: email,
+        password: pass,
       );
+      // Exito: el StreamBuilder de authStateChanges se encarga de navegar.
     } on FirebaseAuthException catch (e) {
-      setState(() {
-        _error = 'Correo o contrasena incorrectos';
-      });
+      setState(() => _error = _mensajeError(e.code));
+    } catch (_) {
+      setState(() => _error = 'Ocurrio un error inesperado. Intenta de nuevo.');
     } finally {
-      setState(() => _cargando = false);
+      if (mounted) setState(() => _cargando = false);
     }
   }
+
+  /// Traduce el codigo de error de Firebase a un mensaje claro en espanol.
+  String _mensajeError(String code) {
+    switch (code) {
+      case 'invalid-email':
+        return 'El correo no tiene un formato valido';
+      case 'user-disabled':
+        return 'Esta cuenta esta deshabilitada';
+      case 'user-not-found':
+        return 'No existe una cuenta con ese correo';
+      case 'wrong-password':
+      case 'invalid-credential':
+        return 'Correo o contrasena incorrectos';
+      case 'too-many-requests':
+        return 'Demasiados intentos. Espera unos minutos e intenta de nuevo';
+      case 'network-request-failed':
+        return 'Sin conexion a internet. Revisa tu red';
+      default:
+        return 'No se pudo iniciar sesion. Intenta de nuevo';
+    }
+  }
+
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    _passCtrl.dispose();
+    super.dispose();
+  }
+
 
   @override
   Widget build(BuildContext context) {
