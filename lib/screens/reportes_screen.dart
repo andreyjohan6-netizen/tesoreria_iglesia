@@ -5,7 +5,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:excel/excel.dart' hide Border;
-import 'package:universal_html/html.dart' as html;
+import 'dart:html' as html;
 import '../theme/app_theme.dart';
 
 class ReportesScreen extends StatefulWidget {

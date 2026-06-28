@@ -4,8 +4,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:html' as html;
 import '../services/permisos.dart';
+import '../services/movimientos_service.dart';
 import '../theme/app_theme.dart';
-
 
 class LibroScreen extends StatefulWidget {
   const LibroScreen({super.key});
@@ -18,8 +18,6 @@ class _LibroScreenState extends State<LibroScreen> {
   int _mesSeleccionado = DateTime.now().month;
   int _anioSeleccionado = DateTime.now().year;
   bool _libroFinalizado = false;
-  int _folioInicialIngreso = 1;
-  int _folioInicialEgreso = 1;
   String _busqueda = '';
   String _filtro = 'todos'; // todos | ingreso | egreso | anulado
 
@@ -34,33 +32,12 @@ class _LibroScreenState extends State<LibroScreen> {
     return '\$${valor.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]}.')}';
   }
 
-  int _diasEnMes(int mes, int anio) {
-    return DateTime(anio, mes + 1, 0).day;
-  }
-
-  static int compararMovimientos(QueryDocumentSnapshot a, QueryDocumentSnapshot b) {
-    final ma = a.data() as Map<String, dynamic>;
-    final mb = b.data() as Map<String, dynamic>;
-
-    final sa = ma['esSaldoAnterior'] == true ? 0 : 1;
-    final sb = mb['esSaldoAnterior'] == true ? 0 : 1;
-    if (sa != sb) return sa - sb;
-
-    final diaA = (ma['dia'] ?? 0) as int;
-    final diaB = (mb['dia'] ?? 0) as int;
-    if (diaA != diaB) return diaA.compareTo(diaB);
-
-    final fa = ma['fecha'];
-    final fb = mb['fecha'];
-    if (fa is Timestamp && fb is Timestamp) return fa.compareTo(fb);
-    return 0;
-  }
+  int _diasEnMes(int mes, int anio) => DateTime(anio, mes + 1, 0).day;
 
   @override
   void initState() {
     super.initState();
     _cargarUltimoMesActivo();
-    _cargarConfiguracion();
   }
 
   Future<void> _cargarUltimoMesActivo() async {
@@ -80,27 +57,14 @@ class _LibroScreenState extends State<LibroScreen> {
         _anioSeleccionado = anio;
       });
     } else {
-      int mesSiguiente = mes == 12 ? 1 : mes + 1;
-      int anioSiguiente = mes == 12 ? anio + 1 : anio;
       setState(() {
-        _mesSeleccionado = mesSiguiente;
-        _anioSeleccionado = anioSiguiente;
+        _mesSeleccionado = mes == 12 ? 1 : mes + 1;
+        _anioSeleccionado = mes == 12 ? anio + 1 : anio;
       });
     }
 
     await _verificarLibroFinalizado();
     await _agregarSaldoAnterior();
-  }
-
-  Future<void> _cargarConfiguracion() async {
-    final doc = await _db.collection('configuracion').doc('iglesia').get();
-    if (doc.exists) {
-      final data = doc.data()!;
-      setState(() {
-        _folioInicialIngreso = data['folioInicialIngreso'] ?? 1;
-        _folioInicialEgreso = data['folioInicialEgreso'] ?? 1;
-      });
-    }
   }
 
   Future<void> _verificarLibroFinalizado() async {
@@ -109,68 +73,7 @@ class _LibroScreenState extends State<LibroScreen> {
         .where('mes', isEqualTo: _mesSeleccionado)
         .where('anio', isEqualTo: _anioSeleccionado)
         .get();
-    setState(() {
-      _libroFinalizado = snapshot.docs.isNotEmpty;
-    });
-  }
-
-  Future<double> _obtenerSaldoActual() async {
-    final movMes = await _db
-        .collection('movimientos')
-        .where('mes', isEqualTo: _mesSeleccionado)
-        .where('anio', isEqualTo: _anioSeleccionado)
-        .orderBy('fecha', descending: true)
-        .limit(1)
-        .get();
-
-    if (movMes.docs.isNotEmpty) {
-      return (movMes.docs.first['saldo'] ?? 0).toDouble();
-    }
-
-    int mesAnterior = _mesSeleccionado == 1 ? 12 : _mesSeleccionado - 1;
-    int anioAnterior = _mesSeleccionado == 1 ? _anioSeleccionado - 1 : _anioSeleccionado;
-
-    final libroAnterior = await _db
-        .collection('libros_finalizados')
-        .where('mes', isEqualTo: mesAnterior)
-        .where('anio', isEqualTo: anioAnterior)
-        .get();
-
-    if (libroAnterior.docs.isNotEmpty) {
-      return (libroAnterior.docs.first['saldoFinal'] ?? 0).toDouble();
-    }
-
-    return 0;
-  }
-
-  Future<String> _obtenerUltimoFolioIngreso() async {
-    final snapshot = await _db
-        .collection('movimientos')
-        .where('tipoFolio', isEqualTo: 'ingreso')
-        .orderBy('fecha', descending: true)
-        .limit(1)
-        .get();
-
-    if (snapshot.docs.isNotEmpty) {
-      final folio = snapshot.docs.first['folioNumero'] ?? (_folioInicialIngreso - 1);
-      return 'I-${(folio + 1).toString().padLeft(3, '0')}';
-    }
-    return 'I-${_folioInicialIngreso.toString().padLeft(3, '0')}';
-  }
-
-  Future<String> _obtenerUltimoFolioEgreso() async {
-    final snapshot = await _db
-        .collection('movimientos')
-        .where('tipoFolio', isEqualTo: 'egreso')
-        .orderBy('fecha', descending: true)
-        .limit(1)
-        .get();
-
-    if (snapshot.docs.isNotEmpty) {
-      final folio = snapshot.docs.first['folioNumero'] ?? (_folioInicialEgreso - 1);
-      return 'E-${(folio + 1).toString().padLeft(3, '0')}';
-    }
-    return 'E-${_folioInicialEgreso.toString().padLeft(3, '0')}';
+    setState(() => _libroFinalizado = snapshot.docs.isNotEmpty);
   }
 
   Future<void> _agregarSaldoAnterior() async {
@@ -179,7 +82,6 @@ class _LibroScreenState extends State<LibroScreen> {
         .where('mes', isEqualTo: _mesSeleccionado)
         .where('anio', isEqualTo: _anioSeleccionado)
         .get();
-
     if (existe.docs.isNotEmpty) return;
 
     int mesAnterior = _mesSeleccionado == 1 ? 12 : _mesSeleccionado - 1;
@@ -190,7 +92,6 @@ class _LibroScreenState extends State<LibroScreen> {
         .where('mes', isEqualTo: mesAnterior)
         .where('anio', isEqualTo: anioAnterior)
         .get();
-
     if (libroAnterior.docs.isEmpty) return;
 
     final saldoAnterior = (libroAnterior.docs.first['saldoFinal'] ?? 0).toDouble();
@@ -218,7 +119,6 @@ class _LibroScreenState extends State<LibroScreen> {
       SnackBar(
         content: Text('El libro de ${_meses[_mesSeleccionado - 1]} ya ha sido finalizado'),
         backgroundColor: AppColors.egreso,
-        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -280,59 +180,21 @@ class _LibroScreenState extends State<LibroScreen> {
                 );
                 return;
               }
-              if (detalleCtrl.text.isEmpty) {
+              if (detalleCtrl.text.trim().isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('El detalle no puede estar vacio'), backgroundColor: AppColors.egreso),
                 );
                 return;
               }
 
-              final saldoActual = await _obtenerSaldoActual();
-              final nuevoSaldo = esIngreso ? saldoActual + monto : saldoActual - monto;
-
-              String folio;
-              int folioNumero;
-
-              if (esIngreso) {
-                folio = await _obtenerUltimoFolioIngreso();
-                final snap = await _db
-                    .collection('movimientos')
-                    .where('tipoFolio', isEqualTo: 'ingreso')
-                    .orderBy('fecha', descending: true)
-                    .limit(1)
-                    .get();
-                folioNumero = snap.docs.isNotEmpty
-                    ? (snap.docs.first['folioNumero'] ?? (_folioInicialIngreso - 1)) + 1
-                    : _folioInicialIngreso;
-              } else {
-                folio = await _obtenerUltimoFolioEgreso();
-                final snap = await _db
-                    .collection('movimientos')
-                    .where('tipoFolio', isEqualTo: 'egreso')
-                    .orderBy('fecha', descending: true)
-                    .limit(1)
-                    .get();
-                folioNumero = snap.docs.isNotEmpty
-                    ? (snap.docs.first['folioNumero'] ?? (_folioInicialEgreso - 1)) + 1
-                    : _folioInicialEgreso;
-              }
-
-              await _db.collection('movimientos').add({
-                'folio': folio,
-                'folioNumero': folioNumero,
-                'tipoFolio': esIngreso ? 'ingreso' : 'egreso',
-                'dia': dia,
-                'detalle': detalleCtrl.text,
-                'ingreso': esIngreso ? monto : null,
-                'egreso': esIngreso ? null : monto,
-                'saldo': nuevoSaldo,
-                'estado': 'Activo',
-                'mes': _mesSeleccionado,
-                'anio': _anioSeleccionado,
-                'fecha': FieldValue.serverTimestamp(),
-              });
-
-              await _recalcularSaldos();
+              await MovimientosService.agregarMovimiento(
+                esIngreso: esIngreso,
+                dia: dia,
+                detalle: detalleCtrl.text.trim(),
+                monto: monto,
+                mes: _mesSeleccionado,
+                anio: _anioSeleccionado,
+              );
 
               if (ctx.mounted) Navigator.pop(ctx);
             },
@@ -445,38 +307,6 @@ class _LibroScreenState extends State<LibroScreen> {
     );
   }
 
-  Future<void> _recalcularSaldos() async {
-    final snapshot = await _db
-        .collection('movimientos')
-        .where('mes', isEqualTo: _mesSeleccionado)
-        .where('anio', isEqualTo: _anioSeleccionado)
-        .orderBy('fecha')
-        .get();
-
-    double saldo = 0;
-    final batch = _db.batch();
-
-    final docs = [...snapshot.docs]..sort(compararMovimientos);
-
-    for (final doc in docs) {
-      final m = doc.data();
-      final esSaldoAnterior = m['esSaldoAnterior'] == true;
-      final estado = m['estado'] ?? 'Activo';
-
-      if (esSaldoAnterior) {
-        saldo = (m['ingreso'] ?? 0).toDouble();
-      } else if (estado == 'Activo') {
-        final ingreso = (m['ingreso'] ?? 0).toDouble();
-        final egreso = (m['egreso'] ?? 0).toDouble();
-        saldo = saldo + ingreso - egreso;
-      }
-
-      batch.update(doc.reference, {'saldo': saldo});
-    }
-
-    await batch.commit();
-  }
-
   void _mostrarAccionesMovimiento(QueryDocumentSnapshot doc) {
     final m = doc.data() as Map<String, dynamic>;
     final estado = m['estado'] ?? 'Activo';
@@ -490,11 +320,9 @@ class _LibroScreenState extends State<LibroScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Text(
-                detalle,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                textAlign: TextAlign.center,
-              ),
+              child: Text(detalle,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  textAlign: TextAlign.center),
             ),
             const Divider(height: 1),
             ListTile(
@@ -542,12 +370,12 @@ class _LibroScreenState extends State<LibroScreen> {
   }
 
   Future<void> _confirmarAnular(QueryDocumentSnapshot doc) async {
-    final confirmado = await showDialog<bool>(
+    final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Anular movimiento'),
         content: const Text(
-          'El movimiento quedara marcado como anulado y dejara de sumar o restar al saldo. Podras reactivarlo despues. Deseas continuar?',
+          'El movimiento quedara anulado y dejara de sumar o restar al saldo. Podras reactivarlo despues. Deseas continuar?',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
@@ -559,11 +387,9 @@ class _LibroScreenState extends State<LibroScreen> {
         ],
       ),
     );
-
-    if (confirmado != true) return;
-
+    if (ok != true) return;
     await doc.reference.update({'estado': 'Anulado'});
-    await _recalcularSaldos();
+    await MovimientosService.recalcularSaldos(_mesSeleccionado, _anioSeleccionado);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Movimiento anulado'), backgroundColor: AppColors.aviso),
@@ -573,7 +399,7 @@ class _LibroScreenState extends State<LibroScreen> {
 
   Future<void> _reactivarMovimiento(QueryDocumentSnapshot doc) async {
     await doc.reference.update({'estado': 'Activo'});
-    await _recalcularSaldos();
+    await MovimientosService.recalcularSaldos(_mesSeleccionado, _anioSeleccionado);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Movimiento reactivado'), backgroundColor: AppColors.ingreso),
@@ -582,13 +408,11 @@ class _LibroScreenState extends State<LibroScreen> {
   }
 
   Future<void> _confirmarEliminar(QueryDocumentSnapshot doc) async {
-    final confirmado = await showDialog<bool>(
+    final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Eliminar movimiento'),
-        content: const Text(
-          'Esta accion borra el movimiento de forma permanente y no se puede deshacer. Deseas continuar?',
-        ),
+        content: const Text('Esta accion borra el movimiento de forma permanente. Deseas continuar?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
           ElevatedButton(
@@ -599,11 +423,10 @@ class _LibroScreenState extends State<LibroScreen> {
         ],
       ),
     );
-
-    if (confirmado != true) return;
-
+    if (ok != true) return;
+    await _db.collection('comprobantes').doc(doc.id).delete().catchError((_) {});
     await doc.reference.delete();
-    await _recalcularSaldos();
+    await MovimientosService.recalcularSaldos(_mesSeleccionado, _anioSeleccionado);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Movimiento eliminado'), backgroundColor: AppColors.egreso),
@@ -634,10 +457,7 @@ class _LibroScreenState extends State<LibroScreen> {
               decoration: InputDecoration(labelText: 'Dia (1 - $maxDias)'),
             ),
             const SizedBox(height: 12),
-            TextField(
-              controller: detalleCtrl,
-              decoration: const InputDecoration(labelText: 'Detalle'),
-            ),
+            TextField(controller: detalleCtrl, decoration: const InputDecoration(labelText: 'Detalle')),
             const SizedBox(height: 12),
             TextField(
               controller: montoCtrl,
@@ -677,7 +497,7 @@ class _LibroScreenState extends State<LibroScreen> {
                 'ingreso': esIngreso ? monto : null,
                 'egreso': esIngreso ? null : monto,
               });
-              await _recalcularSaldos();
+              await MovimientosService.recalcularSaldos(_mesSeleccionado, _anioSeleccionado);
 
               if (ctx.mounted) Navigator.pop(ctx);
               if (mounted) {
@@ -726,8 +546,7 @@ class _LibroScreenState extends State<LibroScreen> {
           }
           final canvas = html.CanvasElement(width: w, height: h);
           canvas.context2D.drawImageScaled(img, 0, 0, w, h);
-          final jpeg = canvas.toDataUrl('image/jpeg', 0.6);
-          completer.complete(jpeg.split(',').last);
+          completer.complete(canvas.toDataUrl('image/jpeg', 0.6).split(',').last);
         });
         img.onError.listen((event) => completer.complete(null));
       });
@@ -776,11 +595,7 @@ class _LibroScreenState extends State<LibroScreen> {
                 ],
               ),
             ),
-            Flexible(
-              child: InteractiveViewer(
-                child: Image.memory(base64Decode(base64Img)),
-              ),
-            ),
+            Flexible(child: InteractiveViewer(child: Image.memory(base64Decode(base64Img)))),
             const SizedBox(height: 12),
           ],
         ),
@@ -813,7 +628,6 @@ class _LibroScreenState extends State<LibroScreen> {
   }
 
   Widget _barraBusqueda(Color cardColor, Color textColor) {
-
     Widget chip(String label, String valor, Color color) {
       final activo = _filtro == valor;
       return Padding(
@@ -899,7 +713,7 @@ class _LibroScreenState extends State<LibroScreen> {
             .snapshots(),
         builder: (context, snapshot) {
           final movimientos = snapshot.hasData ? snapshot.data!.docs : <QueryDocumentSnapshot>[];
-          final movimientosOrdenados = [...movimientos]..sort(compararMovimientos);
+          final movimientosOrdenados = [...movimientos]..sort(MovimientosService.compararMovimientos);
 
           final movimientosFiltrados = movimientosOrdenados.where((doc) {
             final m = doc.data() as Map<String, dynamic>;
@@ -933,10 +747,7 @@ class _LibroScreenState extends State<LibroScreen> {
                       underline: const SizedBox(),
                       dropdownColor: cardColor,
                       style: TextStyle(color: textColor, fontSize: 13),
-                      items: List.generate(12, (i) => DropdownMenuItem(
-                        value: i + 1,
-                        child: Text(_meses[i]),
-                      )),
+                      items: List.generate(12, (i) => DropdownMenuItem(value: i + 1, child: Text(_meses[i]))),
                       onChanged: (v) {
                         setState(() => _mesSeleccionado = v!);
                         _verificarLibroFinalizado();
@@ -949,10 +760,7 @@ class _LibroScreenState extends State<LibroScreen> {
                       underline: const SizedBox(),
                       dropdownColor: cardColor,
                       style: TextStyle(color: textColor, fontSize: 13),
-                      items: [2024, 2025, 2026, 2027].map((a) => DropdownMenuItem(
-                        value: a,
-                        child: Text(a.toString()),
-                      )).toList(),
+                      items: [2024, 2025, 2026, 2027].map((a) => DropdownMenuItem(value: a, child: Text(a.toString()))).toList(),
                       onChanged: (v) {
                         setState(() => _anioSeleccionado = v!);
                         _verificarLibroFinalizado();
@@ -990,10 +798,7 @@ class _LibroScreenState extends State<LibroScreen> {
                       Expanded(
                         child: Text(
                           'Toca una fila para editar, anular o eliminar',
-                          style: TextStyle(
-                            color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-                            fontSize: 11,
-                          ),
+                          style: TextStyle(color: isDark ? Colors.grey.shade400 : Colors.grey.shade600, fontSize: 11),
                         ),
                       ),
                     ],
@@ -1029,12 +834,9 @@ class _LibroScreenState extends State<LibroScreen> {
                                       final m = doc.data() as Map<String, dynamic>;
                                       final estado = m['estado'] ?? 'Activo';
                                       final esSaldoAnterior = m['esSaldoAnterior'] == true;
-                                      final puedeAccionar =
-                                          permisos.puedeEditarMovimientos && !esSaldoAnterior;
+                                      final puedeAccionar = permisos.puedeEditarMovimientos && !esSaldoAnterior;
                                       return DataRow(
-                                        onSelectChanged: puedeAccionar
-                                            ? (_) => _mostrarAccionesMovimiento(doc)
-                                            : null,
+                                        onSelectChanged: puedeAccionar ? (_) => _mostrarAccionesMovimiento(doc) : null,
                                         color: WidgetStateProperty.all(
                                           esSaldoAnterior
                                               ? AppColors.brand.withValues(alpha: 0.12)
@@ -1051,20 +853,14 @@ class _LibroScreenState extends State<LibroScreen> {
                                                   padding: EdgeInsets.only(right: 4),
                                                   child: Icon(Icons.arrow_forward, size: 14, color: AppColors.brand),
                                                 ),
-                                                                                       Flexible(child: Text(m['detalle'] ?? '', style: TextStyle(color: textColor))),
-                                                                                    if (!esSaldoAnterior && m['egreso'] != null) _iconoComprobante(doc, m, permisos),
-
-
+                                              Flexible(child: Text(m['detalle'] ?? '', style: TextStyle(color: textColor))),
+                                              if (!esSaldoAnterior && m['egreso'] != null) _iconoComprobante(doc, m, permisos),
                                             ],
                                           )),
-                                          DataCell(Text(
-                                            m['ingreso'] != null ? _formatear(m['ingreso'].toDouble()) : '-',
-                                            style: const TextStyle(color: AppColors.ingreso),
-                                          )),
-                                          DataCell(Text(
-                                            m['egreso'] != null ? _formatear(m['egreso'].toDouble()) : '-',
-                                            style: const TextStyle(color: AppColors.egreso),
-                                          )),
+                                          DataCell(Text(m['ingreso'] != null ? _formatear(m['ingreso'].toDouble()) : '-',
+                                              style: const TextStyle(color: AppColors.ingreso))),
+                                          DataCell(Text(m['egreso'] != null ? _formatear(m['egreso'].toDouble()) : '-',
+                                              style: const TextStyle(color: AppColors.egreso))),
                                           DataCell(Text(_formatear((m['saldo'] ?? 0).toDouble()), style: TextStyle(color: textColor))),
                                           DataCell(Text(m['folio']?.toString() ?? '-', style: TextStyle(color: textColor))),
                                           DataCell(Container(
