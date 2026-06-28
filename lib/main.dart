@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'services/permisos.dart';
+import 'theme/app_theme.dart';
 import 'screens/resumen_screen.dart';
 import 'screens/libro_screen.dart';
 import 'screens/reportes_screen.dart';
@@ -42,17 +43,9 @@ class _TesoreriaAppState extends State<TesoreriaApp> {
       debugShowCheckedModeBanner: false,
       title: 'Tesoreria Iglesia',
       themeMode: _themeMode,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
-        useMaterial3: true,
-      ),
-      darkTheme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.indigo,
-          brightness: Brightness.dark,
-        ),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
