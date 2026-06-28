@@ -215,21 +215,14 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                         );
                         return;
                       }
-                      final existe = await _db
-                          .collection('usuarios_autorizados')
-                          .where('email', isEqualTo: correo)
-                          .limit(1)
-                          .get();
-                      if (existe.docs.isNotEmpty) {
-                        await existe.docs.first.reference.update({'rol': rolSeleccionado});
-                      } else {
-                        await _db.collection('usuarios_autorizados').add({
-                          'email': correo,
-                          'rol': rolSeleccionado,
-                          'fecha': FieldValue.serverTimestamp(),
-                        });
-                      }
+                      // El documento se identifica por el correo (para las reglas por rol).
+                      await _db.collection('usuarios_autorizados').doc(correo).set({
+                        'email': correo,
+                        'rol': rolSeleccionado,
+                        'fecha': FieldValue.serverTimestamp(),
+                      });
                       emailCtrl.clear();
+
                       setDialogState(() => rolSeleccionado = 'pastor');
                     },
                     icon: const Icon(Icons.person_add),

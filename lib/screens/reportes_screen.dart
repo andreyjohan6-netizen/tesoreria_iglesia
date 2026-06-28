@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:convert';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:excel/excel.dart';
+import 'package:excel/excel.dart' hide Border;
 import 'package:universal_html/html.dart' as html;
 import '../theme/app_theme.dart';
 
@@ -17,6 +18,7 @@ class ReportesScreen extends StatefulWidget {
 class _ReportesScreenState extends State<ReportesScreen> {
   int _mesSeleccionado = DateTime.now().month;
   int _anioSeleccionado = DateTime.now().year;
+  bool _mesFinalizado = false;
   final _db = FirebaseFirestore.instance;
 
   final List<String> _meses = [
@@ -25,6 +27,30 @@ class _ReportesScreenState extends State<ReportesScreen> {
   ];
 
   final List<String> _iniciales = ['E', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
+
+  @override
+  void initState() {
+    super.initState();
+    _verificarFinalizado();
+  }
+
+  Future<void> _verificarFinalizado() async {
+    final snap = await _db
+        .collection('libros_finalizados')
+        .where('mes', isEqualTo: _mesSeleccionado)
+        .where('anio', isEqualTo: _anioSeleccionado)
+        .get();
+    if (mounted) setState(() => _mesFinalizado = snap.docs.isNotEmpty);
+  }
+
+  void _avisoNoFinalizado() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Solo puedes exportar meses ya finalizados (cerrados desde el Libro)'),
+        backgroundColor: AppColors.aviso,
+      ),
+    );
+  }
 
   String _formatear(double valor) {
     return '\$${valor.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]}.')}';
@@ -56,19 +82,59 @@ class _ReportesScreenState extends State<ReportesScreen> {
   }
 
   Future<void> _exportarPDF(List<QueryDocumentSnapshot> docs) async {
+    final configDoc = await _db.collection('configuracion').doc('iglesia').get();
+    final cfg = configDoc.data() ?? {};
+    final nombre = (cfg['nombre'] ?? 'Tesoreria Iglesia').toString();
+    pw.MemoryImage? logoImg;
+    final logoB64 = cfg['logo'];
+    if (logoB64 != null) {
+      try {
+        logoImg = pw.MemoryImage(base64Decode(logoB64));
+      } catch (_) {}
+    }
+
+    double saldoAnterior = 0;
+    double totalIngresos = 0;
+    double totalEgresos = 0;
+    for (final doc in docs) {
+      final m = doc.data() as Map<String, dynamic>;
+      if (m['esSaldoAnterior'] == true) {
+        saldoAnterior = (m['ingreso'] ?? 0).toDouble();
+      } else {
+        if (m['ingreso'] != null) totalIngresos += m['ingreso'].toDouble();
+        if (m['egreso'] != null) totalEgresos += m['egreso'].toDouble();
+      }
+    }
+    final saldoFinal = saldoAnterior + totalIngresos - totalEgresos;
+
     final pdf = pw.Document();
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         build: (context) => [
-          pw.Header(
-            level: 0,
-            child: pw.Text(
-              'Libro de Tesoreria - ${_meses[_mesSeleccionado - 1]} $_anioSeleccionado',
-              style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
-            ),
+          pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.center,
+            children: [
+              if (logoImg != null) ...[
+                pw.Container(width: 48, height: 48, child: pw.Image(logoImg)),
+                pw.SizedBox(width: 12),
+              ],
+              pw.Expanded(
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(nombre,
+                        style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
+                    pw.Text('Libro de Tesoreria - ${_meses[_mesSeleccionado - 1]} $_anioSeleccionado',
+                        style: const pw.TextStyle(fontSize: 12, color: PdfColors.grey700)),
+                  ],
+                ),
+              ),
+            ],
           ),
-          pw.SizedBox(height: 16),
+          pw.SizedBox(height: 8),
+          pw.Divider(color: PdfColors.indigo),
+          pw.SizedBox(height: 12),
           pw.Table.fromTextArray(
             headers: ['Dia', 'Detalle', 'Ingreso', 'Egreso', 'Saldo', 'Folio'],
             data: docs.map((doc) {
@@ -85,6 +151,43 @@ class _ReportesScreenState extends State<ReportesScreen> {
             headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
             headerDecoration: const pw.BoxDecoration(color: PdfColors.indigo),
             cellAlignment: pw.Alignment.centerLeft,
+            cellStyle: const pw.TextStyle(fontSize: 10),
+          ),
+          pw.SizedBox(height: 16),
+          pw.Container(
+            alignment: pw.Alignment.centerRight,
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.end,
+              children: [
+                pw.Text('Total Ingresos: ${_formatear(totalIngresos)}',
+                    style: const pw.TextStyle(fontSize: 12)),
+                pw.Text('Total Egresos: ${_formatear(totalEgresos)}',
+                    style: const pw.TextStyle(fontSize: 12)),
+                pw.SizedBox(height: 4),
+                pw.Text('Saldo Final: ${_formatear(saldoFinal)}',
+                    style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+              ],
+            ),
+          ),
+          pw.SizedBox(height: 48),
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+            children: [
+              pw.Column(children: [
+                pw.Container(width: 160, decoration: const pw.BoxDecoration(
+                  border: pw.Border(top: pw.BorderSide(width: 1)),
+                )),
+                pw.SizedBox(height: 4),
+                pw.Text('Tesorero/a'),
+              ]),
+              pw.Column(children: [
+                pw.Container(width: 160, decoration: const pw.BoxDecoration(
+                  border: pw.Border(top: pw.BorderSide(width: 1)),
+                )),
+                pw.SizedBox(height: 4),
+                pw.Text('Pastor/a'),
+              ]),
+            ],
           ),
         ],
       ),
@@ -193,7 +296,10 @@ class _ReportesScreenState extends State<ReportesScreen> {
                         dropdownColor: cardColor,
                         style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
                         items: List.generate(12, (i) => DropdownMenuItem(value: i + 1, child: Text(_meses[i]))),
-                        onChanged: (v) => setState(() => _mesSeleccionado = v!),
+                        onChanged: (v) {
+                          setState(() => _mesSeleccionado = v!);
+                          _verificarFinalizado();
+                        },
                       ),
                       const Spacer(),
                       DropdownButton<int>(
@@ -202,7 +308,10 @@ class _ReportesScreenState extends State<ReportesScreen> {
                         dropdownColor: cardColor,
                         style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
                         items: [2024, 2025, 2026, 2027].map((a) => DropdownMenuItem(value: a, child: Text(a.toString()))).toList(),
-                        onChanged: (v) => setState(() => _anioSeleccionado = v!),
+                        onChanged: (v) {
+                          setState(() => _anioSeleccionado = v!);
+                          _verificarFinalizado();
+                        },
                       ),
                     ],
                   ),
@@ -227,18 +336,42 @@ class _ReportesScreenState extends State<ReportesScreen> {
 
                 Text('Exportar', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor)),
                 const SizedBox(height: AppSpacing.sm),
+                if (!_mesFinalizado)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    decoration: BoxDecoration(
+                      color: AppColors.aviso.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      border: Border.all(color: AppColors.aviso.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline, color: AppColors.aviso, size: 18),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: Text(
+                            'Solo puedes exportar meses finalizados. Cierra el mes desde el Libro para habilitarlo.',
+                            style: TextStyle(color: AppColors.aviso, fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 Row(
                   children: [
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: () async {
-                          final docs = await _obtenerMovimientosMes(_mesSeleccionado, _anioSeleccionado);
-                          await _exportarPDF(docs);
-                        },
+                        onPressed: _mesFinalizado
+                            ? () async {
+                                final docs = await _obtenerMovimientosMes(_mesSeleccionado, _anioSeleccionado);
+                                await _exportarPDF(docs);
+                              }
+                            : _avisoNoFinalizado,
                         icon: const Icon(Icons.picture_as_pdf),
                         label: const Text('PDF'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.egreso,
+                          backgroundColor: _mesFinalizado ? AppColors.egreso : Colors.grey,
                           foregroundColor: Colors.white,
                         ),
                       ),
@@ -246,14 +379,16 @@ class _ReportesScreenState extends State<ReportesScreen> {
                     const SizedBox(width: AppSpacing.md),
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: () async {
-                          final docs = await _obtenerMovimientosMes(_mesSeleccionado, _anioSeleccionado);
-                          await _exportarExcel(docs);
-                        },
+                        onPressed: _mesFinalizado
+                            ? () async {
+                                final docs = await _obtenerMovimientosMes(_mesSeleccionado, _anioSeleccionado);
+                                await _exportarExcel(docs);
+                              }
+                            : _avisoNoFinalizado,
                         icon: const Icon(Icons.table_chart),
                         label: const Text('Excel'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.ingreso,
+                          backgroundColor: _mesFinalizado ? AppColors.ingreso : Colors.grey,
                           foregroundColor: Colors.white,
                         ),
                       ),

@@ -83,19 +83,25 @@ class RolService {
       return const Acceso(autorizado: true, rol: Rol.admin);
     }
 
-    final snap = await FirebaseFirestore.instance
-        .collection('usuarios_autorizados')
-        .where('email', isEqualTo: correo)
-        .limit(1)
-        .get();
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('usuarios_autorizados')
+          .doc(correo)
+          .get();
 
-    if (snap.docs.isNotEmpty) {
-      final rol = rolDesdeTexto(snap.docs.first.data()['rol']?.toString());
-      return Acceso(autorizado: true, rol: rol);
+      if (doc.exists) {
+        return Acceso(
+          autorizado: true,
+          rol: rolDesdeTexto(doc.data()?['rol']?.toString()),
+        );
+      }
+    } catch (_) {
+      // Sin acceso o error de red: no autorizado.
     }
 
     return const Acceso(autorizado: false, rol: Rol.pastor);
   }
+
 
   /// Carga solo el rol (sin bloquear). Se mantiene por compatibilidad.
   static Future<Rol> cargarRol(String? email) async {

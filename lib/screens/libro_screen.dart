@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
+import 'dart:convert';
+import 'dart:html' as html;
 import '../services/permisos.dart';
+import '../theme/app_theme.dart';
+
 
 class LibroScreen extends StatefulWidget {
   const LibroScreen({super.key});
@@ -15,6 +20,8 @@ class _LibroScreenState extends State<LibroScreen> {
   bool _libroFinalizado = false;
   int _folioInicialIngreso = 1;
   int _folioInicialEgreso = 1;
+  String _busqueda = '';
+  String _filtro = 'todos'; // todos | ingreso | egreso | anulado
 
   final List<String> _meses = [
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -31,22 +38,23 @@ class _LibroScreenState extends State<LibroScreen> {
     return DateTime(anio, mes + 1, 0).day;
   }
 
-  /// Orden: saldo anterior primero, luego por dia, luego por fecha.
   static int compararMovimientos(QueryDocumentSnapshot a, QueryDocumentSnapshot b) {
     final ma = a.data() as Map<String, dynamic>;
     final mb = b.data() as Map<String, dynamic>;
+
     final sa = ma['esSaldoAnterior'] == true ? 0 : 1;
     final sb = mb['esSaldoAnterior'] == true ? 0 : 1;
     if (sa != sb) return sa - sb;
+
     final diaA = (ma['dia'] ?? 0) as int;
     final diaB = (mb['dia'] ?? 0) as int;
     if (diaA != diaB) return diaA.compareTo(diaB);
+
     final fa = ma['fecha'];
     final fb = mb['fecha'];
     if (fa is Timestamp && fb is Timestamp) return fa.compareTo(fb);
     return 0;
   }
-
 
   @override
   void initState() {
@@ -209,7 +217,7 @@ class _LibroScreenState extends State<LibroScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('El libro de ${_meses[_mesSeleccionado - 1]} ya ha sido finalizado'),
-        backgroundColor: Colors.red,
+        backgroundColor: AppColors.egreso,
         duration: const Duration(seconds: 3),
       ),
     );
@@ -236,27 +244,18 @@ class _LibroScreenState extends State<LibroScreen> {
             TextField(
               controller: diaCtrl,
               keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: 'Dia (1 - $maxDias)',
-                border: const OutlineInputBorder(),
-              ),
+              decoration: InputDecoration(labelText: 'Dia (1 - $maxDias)'),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: detalleCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Detalle',
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: 'Detalle'),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: montoCtrl,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Monto',
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: 'Monto'),
             ),
           ],
         ),
@@ -270,20 +269,20 @@ class _LibroScreenState extends State<LibroScreen> {
               final dia = int.tryParse(diaCtrl.text) ?? 0;
               if (dia < 1 || dia > maxDias) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('El dia debe estar entre 1 y $maxDias'), backgroundColor: Colors.red),
+                  SnackBar(content: Text('El dia debe estar entre 1 y $maxDias'), backgroundColor: AppColors.egreso),
                 );
                 return;
               }
               final monto = double.tryParse(montoCtrl.text) ?? 0;
               if (monto <= 0) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('El monto debe ser mayor a 0'), backgroundColor: Colors.red),
+                  const SnackBar(content: Text('El monto debe ser mayor a 0'), backgroundColor: AppColors.egreso),
                 );
                 return;
               }
               if (detalleCtrl.text.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('El detalle no puede estar vacio'), backgroundColor: Colors.red),
+                  const SnackBar(content: Text('El detalle no puede estar vacio'), backgroundColor: AppColors.egreso),
                 );
                 return;
               }
@@ -338,7 +337,7 @@ class _LibroScreenState extends State<LibroScreen> {
               if (ctx.mounted) Navigator.pop(ctx);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: esIngreso ? Colors.green : Colors.red,
+              backgroundColor: esIngreso ? AppColors.ingreso : AppColors.egreso,
               foregroundColor: Colors.white,
             ),
             child: const Text('Guardar'),
@@ -349,7 +348,7 @@ class _LibroScreenState extends State<LibroScreen> {
   }
 
   void _mostrarFinalizarLibro(List<QueryDocumentSnapshot> movimientos) {
-if (_libroFinalizado) {
+    if (_libroFinalizado) {
       _mostrarLibroFinalizado();
       return;
     }
@@ -370,13 +369,12 @@ if (_libroFinalizado) {
 
     final double saldoFinal = saldoAnterior + totalIngresos - totalEgresos;
 
-
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Row(
           children: const [
-            Icon(Icons.lock, color: Colors.indigo),
+            Icon(Icons.lock, color: AppColors.brand),
             SizedBox(width: 8),
             Text('Finalizar Libro'),
           ],
@@ -390,11 +388,11 @@ if (_libroFinalizado) {
             ),
             const Divider(),
             const SizedBox(height: 8),
-            _filaResumen('Total Ingresos', _formatear(totalIngresos), Colors.green),
+            _filaResumen('Total Ingresos', _formatear(totalIngresos), AppColors.ingreso),
             const SizedBox(height: 8),
-            _filaResumen('Total Egresos', _formatear(totalEgresos), Colors.red),
+            _filaResumen('Total Egresos', _formatear(totalEgresos), AppColors.egreso),
             const Divider(),
-            _filaResumen('Saldo Final', _formatear(saldoFinal), Colors.indigo),
+            _filaResumen('Saldo Final', _formatear(saldoFinal), AppColors.brand),
             const SizedBox(height: 16),
             const Text(
               'Al finalizar el libro no se podran agregar mas movimientos en este mes.',
@@ -424,17 +422,13 @@ if (_libroFinalizado) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('Libro de ${_meses[_mesSeleccionado - 1]} finalizado correctamente'),
-                    backgroundColor: Colors.green,
+                    backgroundColor: AppColors.ingreso,
                   ),
                 );
               }
             },
             icon: const Icon(Icons.lock),
             label: const Text('Finalizar'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.indigo,
-              foregroundColor: Colors.white,
-            ),
           ),
         ],
       ),
@@ -451,8 +445,6 @@ if (_libroFinalizado) {
     );
   }
 
-  /// Recalcula el saldo acumulado de TODOS los movimientos del mes activo.
-  /// Los movimientos anulados no afectan el saldo.
   Future<void> _recalcularSaldos() async {
     final snapshot = await _db
         .collection('movimientos')
@@ -461,13 +453,12 @@ if (_libroFinalizado) {
         .orderBy('fecha')
         .get();
 
-     double saldo = 0;
+    double saldo = 0;
     final batch = _db.batch();
 
     final docs = [...snapshot.docs]..sort(compararMovimientos);
 
     for (final doc in docs) {
-
       final m = doc.data();
       final esSaldoAnterior = m['esSaldoAnterior'] == true;
       final estado = m['estado'] ?? 'Activo';
@@ -486,7 +477,6 @@ if (_libroFinalizado) {
     await batch.commit();
   }
 
-  /// Menu de acciones sobre un movimiento (solo admin).
   void _mostrarAccionesMovimiento(QueryDocumentSnapshot doc) {
     final m = doc.data() as Map<String, dynamic>;
     final estado = m['estado'] ?? 'Activo';
@@ -508,7 +498,7 @@ if (_libroFinalizado) {
             ),
             const Divider(height: 1),
             ListTile(
-              leading: const Icon(Icons.edit, color: Colors.indigo),
+              leading: const Icon(Icons.edit, color: AppColors.brand),
               title: const Text('Editar'),
               onTap: () {
                 Navigator.pop(ctx);
@@ -517,7 +507,7 @@ if (_libroFinalizado) {
             ),
             if (estado == 'Activo')
               ListTile(
-                leading: const Icon(Icons.block, color: Colors.orange),
+                leading: const Icon(Icons.block, color: AppColors.aviso),
                 title: const Text('Anular'),
                 subtitle: const Text('No contara en los totales ni el saldo'),
                 onTap: () {
@@ -527,7 +517,7 @@ if (_libroFinalizado) {
               )
             else
               ListTile(
-                leading: const Icon(Icons.check_circle, color: Colors.green),
+                leading: const Icon(Icons.check_circle, color: AppColors.ingreso),
                 title: const Text('Reactivar'),
                 subtitle: const Text('Volvera a contar en los totales'),
                 onTap: () {
@@ -536,7 +526,7 @@ if (_libroFinalizado) {
                 },
               ),
             ListTile(
-              leading: const Icon(Icons.delete_forever, color: Colors.red),
+              leading: const Icon(Icons.delete_forever, color: AppColors.egreso),
               title: const Text('Eliminar'),
               subtitle: const Text('Borra el movimiento de forma permanente'),
               onTap: () {
@@ -563,7 +553,7 @@ if (_libroFinalizado) {
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.aviso, foregroundColor: Colors.white),
             child: const Text('Anular'),
           ),
         ],
@@ -576,7 +566,7 @@ if (_libroFinalizado) {
     await _recalcularSaldos();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Movimiento anulado'), backgroundColor: Colors.orange),
+        const SnackBar(content: Text('Movimiento anulado'), backgroundColor: AppColors.aviso),
       );
     }
   }
@@ -586,7 +576,7 @@ if (_libroFinalizado) {
     await _recalcularSaldos();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Movimiento reactivado'), backgroundColor: Colors.green),
+        const SnackBar(content: Text('Movimiento reactivado'), backgroundColor: AppColors.ingreso),
       );
     }
   }
@@ -603,7 +593,7 @@ if (_libroFinalizado) {
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.egreso, foregroundColor: Colors.white),
             child: const Text('Eliminar'),
           ),
         ],
@@ -616,7 +606,7 @@ if (_libroFinalizado) {
     await _recalcularSaldos();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Movimiento eliminado'), backgroundColor: Colors.red),
+        const SnackBar(content: Text('Movimiento eliminado'), backgroundColor: AppColors.egreso),
       );
     }
   }
@@ -641,21 +631,18 @@ if (_libroFinalizado) {
             TextField(
               controller: diaCtrl,
               keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: 'Dia (1 - $maxDias)',
-                border: const OutlineInputBorder(),
-              ),
+              decoration: InputDecoration(labelText: 'Dia (1 - $maxDias)'),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: detalleCtrl,
-              decoration: const InputDecoration(labelText: 'Detalle', border: OutlineInputBorder()),
+              decoration: const InputDecoration(labelText: 'Detalle'),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: montoCtrl,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Monto', border: OutlineInputBorder()),
+              decoration: const InputDecoration(labelText: 'Monto'),
             ),
           ],
         ),
@@ -666,20 +653,20 @@ if (_libroFinalizado) {
               final dia = int.tryParse(diaCtrl.text) ?? 0;
               if (dia < 1 || dia > maxDias) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('El dia debe estar entre 1 y $maxDias'), backgroundColor: Colors.red),
+                  SnackBar(content: Text('El dia debe estar entre 1 y $maxDias'), backgroundColor: AppColors.egreso),
                 );
                 return;
               }
               final monto = double.tryParse(montoCtrl.text) ?? 0;
               if (monto <= 0) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('El monto debe ser mayor a 0'), backgroundColor: Colors.red),
+                  const SnackBar(content: Text('El monto debe ser mayor a 0'), backgroundColor: AppColors.egreso),
                 );
                 return;
               }
               if (detalleCtrl.text.trim().isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('El detalle no puede estar vacio'), backgroundColor: Colors.red),
+                  const SnackBar(content: Text('El detalle no puede estar vacio'), backgroundColor: AppColors.egreso),
                 );
                 return;
               }
@@ -695,15 +682,184 @@ if (_libroFinalizado) {
               if (ctx.mounted) Navigator.pop(ctx);
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Movimiento actualizado'), backgroundColor: Colors.green),
+                  const SnackBar(content: Text('Movimiento actualizado'), backgroundColor: AppColors.ingreso),
                 );
               }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: esIngreso ? Colors.green : Colors.red,
+              backgroundColor: esIngreso ? AppColors.ingreso : AppColors.egreso,
               foregroundColor: Colors.white,
             ),
             child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<String?> _capturarYComprimir() async {
+    final completer = Completer<String?>();
+    final input = html.FileUploadInputElement()..accept = 'image/*';
+    input.click();
+
+    input.onChange.listen((event) {
+      final file = input.files?.isNotEmpty == true ? input.files!.first : null;
+      if (file == null) {
+        completer.complete(null);
+        return;
+      }
+      final reader = html.FileReader();
+      reader.readAsDataUrl(file);
+      reader.onLoad.listen((event) {
+        final dataUrl = reader.result as String;
+        final img = html.ImageElement(src: dataUrl);
+        img.onLoad.listen((event) {
+          const maxLado = 1000;
+          int w = img.naturalWidth;
+          int h = img.naturalHeight;
+          if (w >= h && w > maxLado) {
+            h = (h * maxLado / w).round();
+            w = maxLado;
+          } else if (h > w && h > maxLado) {
+            w = (w * maxLado / h).round();
+            h = maxLado;
+          }
+          final canvas = html.CanvasElement(width: w, height: h);
+          canvas.context2D.drawImageScaled(img, 0, 0, w, h);
+          final jpeg = canvas.toDataUrl('image/jpeg', 0.6);
+          completer.complete(jpeg.split(',').last);
+        });
+        img.onError.listen((event) => completer.complete(null));
+      });
+    });
+
+    return completer.future;
+  }
+
+  Future<void> _adjuntarComprobante(QueryDocumentSnapshot doc) async {
+    final base64Img = await _capturarYComprimir();
+    if (base64Img == null) return;
+    await _db.collection('comprobantes').doc(doc.id).set({'imagen': base64Img});
+    await doc.reference.update({'tieneComprobante': true});
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Comprobante adjuntado'), backgroundColor: AppColors.ingreso),
+      );
+    }
+  }
+
+  Future<void> _verComprobante(String movId) async {
+    final snap = await _db.collection('comprobantes').doc(movId).get();
+    final base64Img = snap.data()?['imagen'];
+    if (base64Img == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se encontro el comprobante')),
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
+              child: Row(
+                children: [
+                  const Text('Comprobante', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  const Spacer(),
+                  IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+                ],
+              ),
+            ),
+            Flexible(
+              child: InteractiveViewer(
+                child: Image.memory(base64Decode(base64Img)),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _iconoComprobante(QueryDocumentSnapshot doc, Map<String, dynamic> m, Permisos permisos) {
+    final tiene = m['tieneComprobante'] == true;
+    if (tiene) {
+      return IconButton(
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(),
+        visualDensity: VisualDensity.compact,
+        icon: const Icon(Icons.attach_file, size: 18, color: AppColors.brand),
+        tooltip: 'Ver comprobante',
+        onPressed: () => _verComprobante(doc.id),
+      );
+    } else if (permisos.puedeIngresarEgresar) {
+      return IconButton(
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(),
+        visualDensity: VisualDensity.compact,
+        icon: const Icon(Icons.add_a_photo_outlined, size: 16, color: Colors.grey),
+        tooltip: 'Adjuntar comprobante',
+        onPressed: () => _adjuntarComprobante(doc),
+      );
+    }
+    return const SizedBox.shrink();
+  }
+
+  Widget _barraBusqueda(Color cardColor, Color textColor) {
+
+    Widget chip(String label, String valor, Color color) {
+      final activo = _filtro == valor;
+      return Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: ChoiceChip(
+          label: Text(label),
+          selected: activo,
+          onSelected: (_) => setState(() => _filtro = valor),
+          selectedColor: color.withValues(alpha: 0.18),
+          labelStyle: TextStyle(
+            color: activo ? color : textColor,
+            fontWeight: activo ? FontWeight.w600 : FontWeight.normal,
+            fontSize: 12,
+          ),
+          backgroundColor: cardColor,
+          shape: StadiumBorder(
+            side: BorderSide(color: activo ? color : Colors.grey.withValues(alpha: 0.3)),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+      child: Column(
+        children: [
+          TextField(
+            onChanged: (v) => setState(() => _busqueda = v),
+            style: TextStyle(color: textColor, fontSize: 14),
+            decoration: const InputDecoration(
+              hintText: 'Buscar por detalle...',
+              prefixIcon: Icon(Icons.search, size: 20),
+              isDense: true,
+            ),
+          ),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                chip('Todos', 'todos', AppColors.brand),
+                chip('Ingresos', 'ingreso', AppColors.ingreso),
+                chip('Egresos', 'egreso', AppColors.egreso),
+                chip('Anulados', 'anulado', AppColors.aviso),
+              ],
+            ),
           ),
         ],
       ),
@@ -714,16 +870,12 @@ if (_libroFinalizado) {
   Widget build(BuildContext context) {
     final permisos = RolProvider.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? Colors.grey.shade900 : const Color(0xFFF5F5F5);
-    final cardColor = isDark ? Colors.grey.shade800 : Colors.white;
+    final cardColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
     final textColor = isDark ? Colors.white : Colors.black87;
 
     return Scaffold(
-      backgroundColor: bgColor,
       appBar: AppBar(
-        backgroundColor: Colors.indigo,
-        title: const Text('Libro de Tesoreria', style: TextStyle(color: Colors.white)),
-        centerTitle: true,
+        title: const Text('Libro de Tesoreria'),
         actions: [
           if (_libroFinalizado)
             const Padding(
@@ -749,20 +901,36 @@ if (_libroFinalizado) {
           final movimientos = snapshot.hasData ? snapshot.data!.docs : <QueryDocumentSnapshot>[];
           final movimientosOrdenados = [...movimientos]..sort(compararMovimientos);
 
+          final movimientosFiltrados = movimientosOrdenados.where((doc) {
+            final m = doc.data() as Map<String, dynamic>;
+            final esSaldoAnterior = m['esSaldoAnterior'] == true;
+            final sinFiltro = _filtro == 'todos' && _busqueda.trim().isEmpty;
+            if (esSaldoAnterior) return sinFiltro;
+            final estado = (m['estado'] ?? 'Activo').toString();
+            if (_filtro == 'ingreso' && m['ingreso'] == null) return false;
+            if (_filtro == 'egreso' && m['egreso'] == null) return false;
+            if (_filtro == 'anulado' && estado != 'Anulado') return false;
+            if (_busqueda.trim().isNotEmpty) {
+              final detalle = (m['detalle'] ?? '').toString().toLowerCase();
+              if (!detalle.contains(_busqueda.trim().toLowerCase())) return false;
+            }
+            return true;
+          }).toList();
 
           return Column(
             children: [
               Container(
                 color: _libroFinalizado
-                    ? Colors.red.shade900.withValues(alpha: 0.2)
-                    : Colors.indigo.withValues(alpha: 0.1),
+                    ? AppColors.egreso.withValues(alpha: 0.12)
+                    : AppColors.brand.withValues(alpha: 0.08),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Row(
                   children: [
-                    Icon(Icons.calendar_month, color: Colors.indigo, size: 20),
+                    const Icon(Icons.calendar_month, color: AppColors.brand, size: 20),
                     const SizedBox(width: 8),
                     DropdownButton<int>(
                       value: _mesSeleccionado,
+                      underline: const SizedBox(),
                       dropdownColor: cardColor,
                       style: TextStyle(color: textColor, fontSize: 13),
                       items: List.generate(12, (i) => DropdownMenuItem(
@@ -778,6 +946,7 @@ if (_libroFinalizado) {
                     const SizedBox(width: 8),
                     DropdownButton<int>(
                       value: _anioSeleccionado,
+                      underline: const SizedBox(),
                       dropdownColor: cardColor,
                       style: TextStyle(color: textColor, fontSize: 13),
                       items: [2024, 2025, 2026, 2027].map((a) => DropdownMenuItem(
@@ -794,28 +963,29 @@ if (_libroFinalizado) {
                     if (movimientos.isNotEmpty && !_libroFinalizado && permisos.puedeFinalizarLibro)
                       TextButton.icon(
                         onPressed: () => _mostrarFinalizarLibro(movimientos),
-                        icon: const Icon(Icons.lock, color: Colors.indigo, size: 16),
-                        label: const Text('Finalizar', style: TextStyle(color: Colors.indigo, fontSize: 12)),
+                        icon: const Icon(Icons.lock, color: AppColors.brand, size: 16),
+                        label: const Text('Finalizar', style: TextStyle(color: AppColors.brand, fontSize: 12)),
                       ),
                     if (_libroFinalizado)
                       const Row(
                         children: [
-                          Icon(Icons.lock, color: Colors.red, size: 14),
+                          Icon(Icons.lock, color: AppColors.egreso, size: 14),
                           SizedBox(width: 4),
-                          Text('Finalizado', style: TextStyle(color: Colors.red, fontSize: 12)),
+                          Text('Finalizado', style: TextStyle(color: AppColors.egreso, fontSize: 12)),
                         ],
                       ),
                   ],
                 ),
               ),
+              if (movimientos.isNotEmpty) _barraBusqueda(cardColor, textColor),
               if (permisos.puedeEditarMovimientos && movimientos.isNotEmpty)
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                  color: Colors.indigo.withValues(alpha: 0.05),
+                  color: AppColors.brand.withValues(alpha: 0.05),
                   child: Row(
                     children: [
-                      const Icon(Icons.touch_app, size: 14, color: Colors.indigo),
+                      const Icon(Icons.touch_app, size: 14, color: AppColors.brand),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
@@ -835,91 +1005,96 @@ if (_libroFinalizado) {
                     : movimientos.isEmpty
                         ? Center(child: Text('No hay movimientos este mes',
                             style: TextStyle(color: isDark ? Colors.grey.shade400 : Colors.grey)))
-                        : SingleChildScrollView(
-                            scrollDirection: Axis.vertical,
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: DataTable(
-                                showCheckboxColumn: false,
-                                headingRowColor: WidgetStateProperty.all(Colors.indigo),
-                                dataRowColor: WidgetStateProperty.all(cardColor),
-                                columns: const [
-                                  DataColumn(label: Text('Dia', style: TextStyle(color: Colors.white))),
-                                  DataColumn(label: Text('Detalle', style: TextStyle(color: Colors.white))),
-                                  DataColumn(label: Text('Ingreso', style: TextStyle(color: Colors.white))),
-                                  DataColumn(label: Text('Egreso', style: TextStyle(color: Colors.white))),
-                                  DataColumn(label: Text('Saldo', style: TextStyle(color: Colors.white))),
-                                  DataColumn(label: Text('Folio', style: TextStyle(color: Colors.white))),
-                                  DataColumn(label: Text('Estado', style: TextStyle(color: Colors.white))),
-                                ],
-                                                                rows: movimientosOrdenados.map((doc) {
-
-                                  final m = doc.data() as Map<String, dynamic>;
-                                  final estado = m['estado'] ?? 'Activo';
-                                  final esSaldoAnterior = m['esSaldoAnterior'] == true;
-                                  final puedeAccionar =
-                                      permisos.puedeEditarMovimientos && !esSaldoAnterior;
-                                  return DataRow(
-                                    onSelectChanged: puedeAccionar
-                                        ? (_) => _mostrarAccionesMovimiento(doc)
-                                        : null,
-                                    color: WidgetStateProperty.all(
-                                      esSaldoAnterior
-                                          ? Colors.indigo.withValues(alpha: 0.15)
-                                          : estado == 'Anulado'
-                                              ? Colors.red.withValues(alpha: 0.15)
-                                              : cardColor,
-                                    ),
-                                    cells: [
-                                      DataCell(Text(m['dia'].toString(), style: TextStyle(color: textColor))),
-                                      DataCell(Row(
-                                        children: [
-                                          if (esSaldoAnterior)
-                                            const Padding(
-                                              padding: EdgeInsets.only(right: 4),
-                                              child: Icon(Icons.arrow_forward, size: 14, color: Colors.indigo),
-                                            ),
-                                          Flexible(child: Text(m['detalle'] ?? '', style: TextStyle(color: textColor))),
-                                        ],
-                                      )),
-                                      DataCell(Text(
-                                        m['ingreso'] != null ? _formatear(m['ingreso'].toDouble()) : '-',
-                                        style: const TextStyle(color: Colors.green),
-                                      )),
-                                      DataCell(Text(
-                                        m['egreso'] != null ? _formatear(m['egreso'].toDouble()) : '-',
-                                        style: const TextStyle(color: Colors.red),
-                                      )),
-                                      DataCell(Text(_formatear((m['saldo'] ?? 0).toDouble()), style: TextStyle(color: textColor))),
-                                      DataCell(Text(m['folio']?.toString() ?? '-', style: TextStyle(color: textColor))),
-                                      DataCell(Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: esSaldoAnterior
-                                              ? Colors.indigo.withValues(alpha: 0.2)
-                                              : estado == 'Activo'
-                                                  ? Colors.green.withValues(alpha: 0.2)
-                                                  : Colors.red.withValues(alpha: 0.2),
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: Text(
-                                          esSaldoAnterior ? 'S. Anterior' : estado,
-                                          style: TextStyle(
-                                            color: esSaldoAnterior
-                                                ? Colors.indigo
-                                                : estado == 'Activo'
-                                                    ? Colors.green
-                                                    : Colors.red,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      )),
+                        : movimientosFiltrados.isEmpty
+                            ? Center(child: Text('No hay resultados para tu busqueda',
+                                style: TextStyle(color: isDark ? Colors.grey.shade400 : Colors.grey)))
+                            : SingleChildScrollView(
+                                scrollDirection: Axis.vertical,
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: DataTable(
+                                    showCheckboxColumn: false,
+                                    headingRowColor: WidgetStateProperty.all(AppColors.brand),
+                                    dataRowColor: WidgetStateProperty.all(cardColor),
+                                    columns: const [
+                                      DataColumn(label: Text('Dia', style: TextStyle(color: Colors.white))),
+                                      DataColumn(label: Text('Detalle', style: TextStyle(color: Colors.white))),
+                                      DataColumn(label: Text('Ingreso', style: TextStyle(color: Colors.white))),
+                                      DataColumn(label: Text('Egreso', style: TextStyle(color: Colors.white))),
+                                      DataColumn(label: Text('Saldo', style: TextStyle(color: Colors.white))),
+                                      DataColumn(label: Text('Folio', style: TextStyle(color: Colors.white))),
+                                      DataColumn(label: Text('Estado', style: TextStyle(color: Colors.white))),
                                     ],
-                                  );
-                                }).toList(),
+                                    rows: movimientosFiltrados.map((doc) {
+                                      final m = doc.data() as Map<String, dynamic>;
+                                      final estado = m['estado'] ?? 'Activo';
+                                      final esSaldoAnterior = m['esSaldoAnterior'] == true;
+                                      final puedeAccionar =
+                                          permisos.puedeEditarMovimientos && !esSaldoAnterior;
+                                      return DataRow(
+                                        onSelectChanged: puedeAccionar
+                                            ? (_) => _mostrarAccionesMovimiento(doc)
+                                            : null,
+                                        color: WidgetStateProperty.all(
+                                          esSaldoAnterior
+                                              ? AppColors.brand.withValues(alpha: 0.12)
+                                              : estado == 'Anulado'
+                                                  ? AppColors.egreso.withValues(alpha: 0.12)
+                                                  : cardColor,
+                                        ),
+                                        cells: [
+                                          DataCell(Text(m['dia'].toString(), style: TextStyle(color: textColor))),
+                                          DataCell(Row(
+                                            children: [
+                                              if (esSaldoAnterior)
+                                                const Padding(
+                                                  padding: EdgeInsets.only(right: 4),
+                                                  child: Icon(Icons.arrow_forward, size: 14, color: AppColors.brand),
+                                                ),
+                                                                                       Flexible(child: Text(m['detalle'] ?? '', style: TextStyle(color: textColor))),
+                                                                                    if (!esSaldoAnterior && m['egreso'] != null) _iconoComprobante(doc, m, permisos),
+
+
+                                            ],
+                                          )),
+                                          DataCell(Text(
+                                            m['ingreso'] != null ? _formatear(m['ingreso'].toDouble()) : '-',
+                                            style: const TextStyle(color: AppColors.ingreso),
+                                          )),
+                                          DataCell(Text(
+                                            m['egreso'] != null ? _formatear(m['egreso'].toDouble()) : '-',
+                                            style: const TextStyle(color: AppColors.egreso),
+                                          )),
+                                          DataCell(Text(_formatear((m['saldo'] ?? 0).toDouble()), style: TextStyle(color: textColor))),
+                                          DataCell(Text(m['folio']?.toString() ?? '-', style: TextStyle(color: textColor))),
+                                          DataCell(Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: esSaldoAnterior
+                                                  ? AppColors.brand.withValues(alpha: 0.2)
+                                                  : estado == 'Activo'
+                                                      ? AppColors.ingreso.withValues(alpha: 0.2)
+                                                      : AppColors.egreso.withValues(alpha: 0.2),
+                                              borderRadius: BorderRadius.circular(12),
+                                            ),
+                                            child: Text(
+                                              esSaldoAnterior ? 'S. Anterior' : estado,
+                                              style: TextStyle(
+                                                color: esSaldoAnterior
+                                                    ? AppColors.brand
+                                                    : estado == 'Activo'
+                                                        ? AppColors.ingreso
+                                                        : AppColors.egreso,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          )),
+                                        ],
+                                      );
+                                    }).toList(),
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
               ),
             ],
           );
@@ -937,7 +1112,7 @@ if (_libroFinalizado) {
                       icon: const Icon(Icons.add),
                       label: const Text('Ingreso'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _libroFinalizado ? Colors.grey : Colors.green,
+                        backgroundColor: _libroFinalizado ? Colors.grey : AppColors.ingreso,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
@@ -950,7 +1125,7 @@ if (_libroFinalizado) {
                       icon: const Icon(Icons.remove),
                       label: const Text('Egreso'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _libroFinalizado ? Colors.grey : Colors.red,
+                        backgroundColor: _libroFinalizado ? Colors.grey : AppColors.egreso,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
