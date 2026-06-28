@@ -754,8 +754,8 @@ if (_libroFinalizado) {
             children: [
               Container(
                 color: _libroFinalizado
-                    ? Colors.red.shade900.withOpacity(0.2)
-                    : Colors.indigo.withOpacity(0.1),
+                    ? Colors.red.shade900.withValues(alpha: 0.2)
+                    : Colors.indigo.withValues(alpha: 0.1),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Row(
                   children: [
@@ -812,7 +812,7 @@ if (_libroFinalizado) {
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                  color: Colors.indigo.withOpacity(0.05),
+                  color: Colors.indigo.withValues(alpha: 0.05),
                   child: Row(
                     children: [
                       const Icon(Icons.touch_app, size: 14, color: Colors.indigo),
@@ -865,9 +865,9 @@ if (_libroFinalizado) {
                                         : null,
                                     color: WidgetStateProperty.all(
                                       esSaldoAnterior
-                                          ? Colors.indigo.withOpacity(0.15)
+                                          ? Colors.indigo.withValues(alpha: 0.15)
                                           : estado == 'Anulado'
-                                              ? Colors.red.withOpacity(0.15)
+                                              ? Colors.red.withValues(alpha: 0.15)
                                               : cardColor,
                                     ),
                                     cells: [
@@ -896,10 +896,10 @@ if (_libroFinalizado) {
                                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                         decoration: BoxDecoration(
                                           color: esSaldoAnterior
-                                              ? Colors.indigo.withOpacity(0.2)
+                                              ? Colors.indigo.withValues(alpha: 0.2)
                                               : estado == 'Activo'
-                                                  ? Colors.green.withOpacity(0.2)
-                                                  : Colors.red.withOpacity(0.2),
+                                                  ? Colors.green.withValues(alpha: 0.2)
+                                                  : Colors.red.withValues(alpha: 0.2),
                                           borderRadius: BorderRadius.circular(12),
                                         ),
                                         child: Text(

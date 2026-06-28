@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:html' as html;
 import '../main.dart';
 import '../services/permisos.dart';
+import '../theme/app_theme.dart';
 
 class ConfiguracionScreen extends StatefulWidget {
   const ConfiguracionScreen({super.key});
@@ -60,10 +61,11 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
       'folioInicialEgreso': int.tryParse(_folioEgresoCtrl.text) ?? 1,
       'logo': _logoBase64,
     });
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Configuracion guardada correctamente'),
-        backgroundColor: Colors.green,
+        backgroundColor: AppColors.ingreso,
       ),
     );
   }
@@ -86,7 +88,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Logo cargado. Presiona Guardar para aplicar.'),
-            backgroundColor: Colors.indigo,
+            backgroundColor: AppColors.brand,
           ),
         );
       });
@@ -108,28 +110,19 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
             TextField(
               controller: passActualCtrl,
               obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Contrasena actual',
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: 'Contrasena actual'),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             TextField(
               controller: passNuevaCtrl,
               obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Nueva contrasena',
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: 'Nueva contrasena'),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             TextField(
               controller: passConfirmarCtrl,
               obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Confirmar contrasena',
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: 'Confirmar contrasena'),
             ),
           ],
         ),
@@ -144,7 +137,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Las contrasenas no coinciden'),
-                    backgroundColor: Colors.red,
+                    backgroundColor: AppColors.egreso,
                   ),
                 );
                 return;
@@ -161,22 +154,18 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Contrasena cambiada correctamente'),
-                    backgroundColor: Colors.green,
+                    backgroundColor: AppColors.ingreso,
                   ),
                 );
               } catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Contrasena actual incorrecta'),
-                    backgroundColor: Colors.red,
+                    backgroundColor: AppColors.egreso,
                   ),
                 );
               }
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.indigo,
-              foregroundColor: Colors.white,
-            ),
             child: const Text('Guardar'),
           ),
         ],
@@ -201,18 +190,12 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                 TextField(
                   controller: emailCtrl,
                   keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
-                    labelText: 'Correo del usuario',
-                    border: OutlineInputBorder(),
-                  ),
+                  decoration: const InputDecoration(labelText: 'Correo del usuario'),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpacing.md),
                 DropdownButtonFormField<String>(
                   value: rolSeleccionado,
-                  decoration: const InputDecoration(
-                    labelText: 'Rol',
-                    border: OutlineInputBorder(),
-                  ),
+                  decoration: const InputDecoration(labelText: 'Rol'),
                   items: const [
                     DropdownMenuItem(value: 'admin', child: Text('Administrador (todo)')),
                     DropdownMenuItem(value: 'tesorero', child: Text('Tesorero (registra, no edita)')),
@@ -220,7 +203,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                   ],
                   onChanged: (v) => setDialogState(() => rolSeleccionado = v ?? 'pastor'),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpacing.md),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
@@ -228,7 +211,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                       final correo = emailCtrl.text.trim().toLowerCase();
                       if (correo.isEmpty || !correo.contains('@')) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Ingresa un correo valido'), backgroundColor: Colors.red),
+                          const SnackBar(content: Text('Ingresa un correo valido'), backgroundColor: AppColors.egreso),
                         );
                         return;
                       }
@@ -251,19 +234,15 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                     },
                     icon: const Icon(Icons.person_add),
                     label: const Text('Agregar / Actualizar'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.indigo,
-                      foregroundColor: Colors.white,
-                    ),
                   ),
                 ),
-                const Divider(height: 24),
+                const Divider(height: AppSpacing.xl),
                 StreamBuilder<QuerySnapshot>(
                   stream: _db.collection('usuarios_autorizados').snapshots(),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                       return const Padding(
-                        padding: EdgeInsets.all(8),
+                        padding: EdgeInsets.all(AppSpacing.sm),
                         child: Text('No hay usuarios autorizados'),
                       );
                     }
@@ -273,11 +252,11 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                         final rolTxt = (data['rol'] ?? 'pastor').toString();
                         return ListTile(
                           contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.person, color: Colors.indigo),
+                          leading: const Icon(Icons.person, color: AppColors.brand),
                           title: Text(data['email'] ?? ''),
                           subtitle: Text('Rol: $rolTxt'),
                           trailing: IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.red),
+                            icon: const Icon(Icons.delete, color: AppColors.egreso),
                             onPressed: () => doc.reference.delete(),
                           ),
                         );
@@ -303,8 +282,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
   Widget build(BuildContext context) {
     final permisos = RolProvider.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? Colors.grey.shade900 : const Color(0xFFF5F5F5);
-    final cardColor = isDark ? Colors.grey.shade800 : Colors.white;
+    final cardColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
     final textColor = isDark ? Colors.white : Colors.black87;
 
     if (_cargando) {
@@ -314,14 +292,9 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
     }
 
     return Scaffold(
-      backgroundColor: bgColor,
-      appBar: AppBar(
-        backgroundColor: Colors.indigo,
-        title: const Text('Configuracion', style: TextStyle(color: Colors.white)),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Configuracion')),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -332,55 +305,50 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                   GestureDetector(
                     onTap: permisos.puedeEditarConfiguracion ? _subirLogo : null,
                     child: Container(
-                      width: 110,
-                      height: 110,
+                      width: 104,
+                      height: 104,
                       decoration: BoxDecoration(
-                        color: Colors.indigo.shade100,
+                        color: AppColors.brand.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.indigo, width: 2),
+                        border: Border.all(color: AppColors.brand, width: 2),
                       ),
                       child: _logoBase64 != null
                           ? ClipOval(
-                              child: Image.memory(
-                                base64Decode(_logoBase64!),
-                                fit: BoxFit.cover,
-                              ),
+                              child: Image.memory(base64Decode(_logoBase64!), fit: BoxFit.cover),
                             )
-                          : const Icon(Icons.church, size: 50, color: Colors.indigo),
+                          : const Icon(Icons.church, size: 48, color: AppColors.brand),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  if (permisos.puedeEditarConfiguracion)
+                  if (permisos.puedeEditarConfiguracion) ...[
+                    const SizedBox(height: AppSpacing.xs),
                     TextButton.icon(
                       onPressed: _subirLogo,
-                      icon: const Icon(Icons.upload),
+                      icon: const Icon(Icons.upload, size: 18),
                       label: const Text('Cambiar logo'),
                     ),
+                  ],
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.lg),
 
-            // Indicador de sesion / rol actual
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: cardColor,
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: [
-                  BoxShadow(color: Colors.black12, blurRadius: 4, offset: const Offset(0, 2)),
-                ],
-              ),
+            // Sesion / rol actual
+            _tarjeta(
+              cardColor,
               child: Row(
                 children: [
-                  const Icon(Icons.badge, color: Colors.indigo),
-                  const SizedBox(width: 12),
+                  CircleAvatar(
+                    backgroundColor: AppColors.brand.withValues(alpha: 0.12),
+                    child: const Icon(Icons.badge, color: AppColors.brand),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(_auth.currentUser?.email ?? 'Sesion iniciada',
-                            style: TextStyle(color: textColor, fontWeight: FontWeight.w500)),
+                            style: TextStyle(color: textColor, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 2),
                         Text('Rol: ${permisos.nombreRol}',
                             style: const TextStyle(color: Colors.grey, fontSize: 12)),
                       ],
@@ -389,37 +357,24 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpacing.xl),
 
             if (permisos.puedeEditarConfiguracion) ...[
               _seccion('Datos de la Iglesia', textColor),
               _campo(
                 label: 'Nombre de la iglesia',
-                child: TextField(
-                  controller: _nombreCtrl,
-                  style: TextStyle(color: textColor),
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                ),
+                child: TextField(controller: _nombreCtrl, style: TextStyle(color: textColor)),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpacing.md),
               _campo(
                 label: 'Moneda',
                 child: DropdownButtonFormField<String>(
                   value: _moneda,
-                  dropdownColor: cardColor,
-                  style: TextStyle(color: textColor),
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
                   items: _monedas.map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
                   onChanged: (v) => setState(() => _moneda = v!),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppSpacing.xl),
 
               _seccion('Configuracion de Folios', textColor),
               _campo(
@@ -428,117 +383,58 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                   controller: _folioIngresoCtrl,
                   keyboardType: TextInputType.number,
                   style: TextStyle(color: textColor),
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    hintText: 'Ejemplo: 1',
-                    prefixText: 'I-',
-                  ),
+                  decoration: const InputDecoration(prefixText: 'I-', hintText: 'Ejemplo: 1'),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpacing.md),
               _campo(
                 label: 'Folio inicial de Egresos',
                 child: TextField(
                   controller: _folioEgresoCtrl,
                   keyboardType: TextInputType.number,
                   style: TextStyle(color: textColor),
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    hintText: 'Ejemplo: 1',
-                    prefixText: 'E-',
-                  ),
+                  decoration: const InputDecoration(prefixText: 'E-', hintText: 'Ejemplo: 1'),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppSpacing.xl),
             ],
 
             _seccion('Apariencia', textColor),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: cardColor,
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: [
-                  BoxShadow(color: Colors.black12, blurRadius: 4, offset: const Offset(0, 2)),
-                ],
-              ),
+            _tarjeta(
+              cardColor,
               child: Row(
                 children: [
-                  const Icon(Icons.dark_mode, color: Colors.indigo),
-                  const SizedBox(width: 12),
+                  const Icon(Icons.dark_mode, color: AppColors.brand),
+                  const SizedBox(width: AppSpacing.md),
                   Expanded(child: Text('Modo oscuro', style: TextStyle(color: textColor))),
                   Switch(
                     value: isDark,
-                    activeColor: Colors.indigo,
-                    onChanged: (value) {
-                      TesoreriaApp.of(context)?.toggleTheme(value);
-                    },
+                    onChanged: (value) => TesoreriaApp.of(context)?.toggleTheme(value),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpacing.xl),
 
             _seccion('Seguridad', textColor),
             _botonOpcion(
               icono: Icons.lock,
               texto: 'Cambiar contrasena',
-              color: Colors.indigo,
               cardColor: cardColor,
               textColor: textColor,
               onTap: _cambiarContrasena,
             ),
-            const SizedBox(height: 8),
-            if (permisos.puedeAdministrarUsuarios)
+            if (permisos.puedeAdministrarUsuarios) ...[
+              const SizedBox(height: AppSpacing.sm),
               _botonOpcion(
                 icono: Icons.people,
                 texto: 'Administrar usuarios autorizados',
-                color: Colors.indigo,
                 cardColor: cardColor,
                 textColor: textColor,
                 onTap: _administrarUsuarios,
               ),
-            const SizedBox(height: 24),
-
-            _seccion('Plan actual', textColor),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.indigo.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.indigo.shade200),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.star, color: Colors.indigo),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Plan Gratuito', style: TextStyle(fontWeight: FontWeight.bold, color: textColor)),
-                        Text('Funciones basicas activas', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                      ],
-                    ),
-                  ),
-                  ElevatedButton(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Planes de pago - Proximamente')),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.indigo,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: const Text('Mejorar'),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
+            ],
+            const SizedBox(height: AppSpacing.xl),
 
             if (permisos.puedeEditarConfiguracion)
               SizedBox(
@@ -547,14 +443,9 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                   onPressed: _guardar,
                   icon: const Icon(Icons.save),
                   label: const Text('Guardar cambios'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.indigo,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
                 ),
               ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -564,9 +455,8 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                 icon: const Icon(Icons.logout),
                 label: const Text('Cerrar sesion'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
+                  backgroundColor: AppColors.egreso,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
               ),
             ),
@@ -577,10 +467,24 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
     );
   }
 
+  Widget _tarjeta(Color cardColor, {required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: child,
+    );
+  }
+
   Widget _seccion(String titulo, Color textColor) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(titulo, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor)),
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Text(titulo, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: textColor)),
     );
   }
 
@@ -589,7 +493,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
-        const SizedBox(height: 4),
+        const SizedBox(height: AppSpacing.xs),
         child,
       ],
     );
@@ -598,29 +502,32 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
   Widget _botonOpcion({
     required IconData icono,
     required String texto,
-    required Color color,
     required Color cardColor,
     required Color textColor,
     required VoidCallback onTap,
   }) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: cardColor,
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: [
-            BoxShadow(color: Colors.black12, blurRadius: 4, offset: const Offset(0, 2)),
-          ],
-        ),
-        child: Row(
-          children: [
-            Icon(icono, color: color),
-            const SizedBox(width: 12),
-            Expanded(child: Text(texto, style: TextStyle(color: textColor))),
-            const Icon(Icons.chevron_right, color: Colors.grey),
-          ],
+    return Material(
+      color: cardColor,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        child: Container(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2)),
+            ],
+          ),
+          child: Row(
+            children: [
+              Icon(icono, color: AppColors.brand),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(child: Text(texto, style: TextStyle(color: textColor))),
+              const Icon(Icons.chevron_right, color: Colors.grey),
+            ],
+          ),
         ),
       ),
     );

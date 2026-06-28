@@ -5,6 +5,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:excel/excel.dart';
 import 'package:universal_html/html.dart' as html;
+import '../theme/app_theme.dart';
 
 class ReportesScreen extends StatefulWidget {
   const ReportesScreen({super.key});
@@ -23,6 +24,8 @@ class _ReportesScreenState extends State<ReportesScreen> {
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
   ];
 
+  final List<String> _iniciales = ['E', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
+
   String _formatear(double valor) {
     return '\$${valor.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]}.')}';
   }
@@ -35,7 +38,6 @@ class _ReportesScreenState extends State<ReportesScreen> {
         .where('estado', isEqualTo: 'Activo')
         .orderBy('fecha')
         .get();
-    // Ordenar por dia para que el reporte coincida con el libro.
     final docs = [...snapshot.docs]..sort((a, b) {
       final ma = a.data() as Map<String, dynamic>;
       final mb = b.data() as Map<String, dynamic>;
@@ -51,7 +53,6 @@ class _ReportesScreenState extends State<ReportesScreen> {
       return 0;
     });
     return docs;
-
   }
 
   Future<void> _exportarPDF(List<QueryDocumentSnapshot> docs) async {
@@ -77,7 +78,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
                 m['detalle'] ?? '',
                 m['ingreso'] != null ? _formatear(m['ingreso'].toDouble()) : '-',
                 m['egreso'] != null ? _formatear(m['egreso'].toDouble()) : '-',
-                _formatear(m['saldo'].toDouble()),
+                _formatear((m['saldo'] ?? 0).toDouble()),
                 m['folio']?.toString() ?? '-',
               ];
             }).toList(),
@@ -110,7 +111,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
         TextCellValue(m['detalle'] ?? ''),
         TextCellValue(m['ingreso'] != null ? m['ingreso'].toString() : '-'),
         TextCellValue(m['egreso'] != null ? m['egreso'].toString() : '-'),
-        TextCellValue(m['saldo'].toString()),
+        TextCellValue((m['saldo'] ?? 0).toString()),
         TextCellValue(m['folio']?.toString() ?? '-'),
         TextCellValue(m['estado'] ?? 'Activo'),
       ]);
@@ -127,17 +128,11 @@ class _ReportesScreenState extends State<ReportesScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? Colors.grey.shade900 : const Color(0xFFF5F5F5);
-    final cardColor = isDark ? Colors.grey.shade800 : Colors.white;
+    final cardColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
     final textColor = isDark ? Colors.white : Colors.black87;
 
     return Scaffold(
-      backgroundColor: bgColor,
-      appBar: AppBar(
-        backgroundColor: Colors.indigo,
-        title: const Text('Reportes', style: TextStyle(color: Colors.white)),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Reportes')),
       body: StreamBuilder<QuerySnapshot>(
         stream: _db
             .collection('movimientos')
@@ -175,81 +170,63 @@ class _ReportesScreenState extends State<ReportesScreen> {
           final saldoAnio = ingresosAnio - egresosAnio;
 
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Selector
                 Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+                  decoration: BoxDecoration(
+                    color: cardColor,
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2)),
+                    ],
+                  ),
                   child: Row(
                     children: [
-                      const Icon(Icons.calendar_month, color: Colors.indigo),
-                      const SizedBox(width: 8),
+                      const Icon(Icons.calendar_month, color: AppColors.brand),
+                      const SizedBox(width: AppSpacing.sm),
                       DropdownButton<int>(
                         value: _mesSeleccionado,
+                        underline: const SizedBox(),
                         dropdownColor: cardColor,
-                        style: TextStyle(color: textColor),
+                        style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
                         items: List.generate(12, (i) => DropdownMenuItem(value: i + 1, child: Text(_meses[i]))),
                         onChanged: (v) => setState(() => _mesSeleccionado = v!),
                       ),
-                      const SizedBox(width: 16),
+                      const Spacer(),
                       DropdownButton<int>(
                         value: _anioSeleccionado,
+                        underline: const SizedBox(),
                         dropdownColor: cardColor,
-                        style: TextStyle(color: textColor),
+                        style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
                         items: [2024, 2025, 2026, 2027].map((a) => DropdownMenuItem(value: a, child: Text(a.toString()))).toList(),
                         onChanged: (v) => setState(() => _anioSeleccionado = v!),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: AppSpacing.lg),
 
-                Text('Resumen Mensual', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor)),
-                const SizedBox(height: 8),
-                _tarjetaResumen(titulo: _meses[_mesSeleccionado - 1], ingresos: ingresosMes, egresos: egresosMes, saldo: saldoMes, cardColor: cardColor, textColor: textColor),
-                const SizedBox(height: 16),
+                Text('Ingresos vs Egresos $_anioSeleccionado',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor)),
+                const SizedBox(height: AppSpacing.sm),
+                _grafico(ingresosPorMes, egresosPorMes, cardColor, textColor),
+                const SizedBox(height: AppSpacing.xl),
 
-                Text('Resumen Anual', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor)),
-                const SizedBox(height: 8),
-                _tarjetaResumen(titulo: _anioSeleccionado.toString(), ingresos: ingresosAnio, egresos: egresosAnio, saldo: saldoAnio, cardColor: cardColor, textColor: textColor),
-                const SizedBox(height: 16),
+                Text('Resumen del mes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor)),
+                const SizedBox(height: AppSpacing.sm),
+                _tarjetaResumen(_meses[_mesSeleccionado - 1], ingresosMes, egresosMes, saldoMes, cardColor, textColor),
+                const SizedBox(height: AppSpacing.lg),
 
-                Text('Detalle por Mes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor)),
-                const SizedBox(height: 8),
-                Container(
-                  decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(12)),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      headingRowColor: WidgetStateProperty.all(Colors.indigo),
-                      dataRowColor: WidgetStateProperty.all(cardColor),
-                      columns: const [
-                        DataColumn(label: Text('Mes', style: TextStyle(color: Colors.white))),
-                        DataColumn(label: Text('Ingresos', style: TextStyle(color: Colors.white))),
-                        DataColumn(label: Text('Egresos', style: TextStyle(color: Colors.white))),
-                        DataColumn(label: Text('Saldo', style: TextStyle(color: Colors.white))),
-                      ],
-                      rows: List.generate(12, (i) {
-                        final ing = ingresosPorMes[i + 1] ?? 0;
-                        final egr = egresosPorMes[i + 1] ?? 0;
-                        final sal = ing - egr;
-                        return DataRow(cells: [
-                          DataCell(Text(_meses[i], style: TextStyle(color: textColor))),
-                          DataCell(Text(_formatear(ing), style: const TextStyle(color: Colors.green))),
-                          DataCell(Text(_formatear(egr), style: const TextStyle(color: Colors.red))),
-                          DataCell(Text(_formatear(sal), style: TextStyle(color: sal >= 0 ? Colors.indigo : Colors.red, fontWeight: FontWeight.bold))),
-                        ]);
-                      }),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
+                Text('Resumen del ano', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor)),
+                const SizedBox(height: AppSpacing.sm),
+                _tarjetaResumen(_anioSeleccionado.toString(), ingresosAnio, egresosAnio, saldoAnio, cardColor, textColor),
+                const SizedBox(height: AppSpacing.xl),
 
                 Text('Exportar', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor)),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpacing.sm),
                 Row(
                   children: [
                     Expanded(
@@ -259,15 +236,14 @@ class _ReportesScreenState extends State<ReportesScreen> {
                           await _exportarPDF(docs);
                         },
                         icon: const Icon(Icons.picture_as_pdf),
-                        label: const Text('Exportar PDF'),
+                        label: const Text('PDF'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red.shade700,
+                          backgroundColor: AppColors.egreso,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: AppSpacing.md),
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: () async {
@@ -275,11 +251,10 @@ class _ReportesScreenState extends State<ReportesScreen> {
                           await _exportarExcel(docs);
                         },
                         icon: const Icon(Icons.table_chart),
-                        label: const Text('Exportar Excel'),
+                        label: const Text('Excel'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green.shade700,
+                          backgroundColor: AppColors.ingreso,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
                       ),
                     ),
@@ -294,32 +269,113 @@ class _ReportesScreenState extends State<ReportesScreen> {
     );
   }
 
-  Widget _tarjetaResumen({
-    required String titulo,
-    required double ingresos,
-    required double egresos,
-    required double saldo,
-    required Color cardColor,
-    required Color textColor,
-  }) {
+  Widget _grafico(Map<int, double> ing, Map<int, double> egr, Color cardColor, Color textColor) {
+    double maxVal = 1;
+    for (int i = 1; i <= 12; i++) {
+      final a = ing[i] ?? 0;
+      final b = egr[i] ?? 0;
+      if (a > maxVal) maxVal = a;
+      if (b > maxVal) maxVal = b;
+    }
+    const double maxH = 110;
+
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         color: cardColor,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4, offset: const Offset(0, 2))],
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _leyenda(AppColors.ingreso, 'Ingresos'),
+              const SizedBox(width: AppSpacing.lg),
+              _leyenda(AppColors.egreso, 'Egresos'),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          SizedBox(
+            height: maxH + 22,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: List.generate(12, (i) {
+                final mi = i + 1;
+                final hi = ((ing[mi] ?? 0) / maxVal * maxH);
+                final he = ((egr[mi] ?? 0) / maxVal * maxH);
+                return Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          _barra(hi, AppColors.ingreso),
+                          const SizedBox(width: 2),
+                          _barra(he, AppColors.egreso),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(_iniciales[i], style: TextStyle(fontSize: 10, color: textColor)),
+                    ],
+                  ),
+                );
+              }),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _barra(double h, Color c) {
+    return Container(
+      width: 7,
+      height: h < 2 ? 2 : h,
+      decoration: BoxDecoration(
+        color: c,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
+      ),
+    );
+  }
+
+  Widget _leyenda(Color c, String t) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(width: 10, height: 10, decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
+        const SizedBox(width: 6),
+        Text(t, style: const TextStyle(fontSize: 12)),
+      ],
+    );
+  }
+
+  Widget _tarjetaResumen(String titulo, double ingresos, double egresos, double saldo, Color cardColor, Color textColor) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(titulo, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: textColor)),
-          const Divider(),
+          const Divider(height: AppSpacing.xl),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _itemResumen('Ingresos', ingresos, Colors.green),
-              _itemResumen('Egresos', egresos, Colors.red),
-              _itemResumen('Saldo', saldo, Colors.indigo),
+              _itemResumen('Ingresos', ingresos, AppColors.ingreso),
+              _itemResumen('Egresos', egresos, AppColors.egreso),
+              _itemResumen('Saldo', saldo, AppColors.brand),
             ],
           ),
         ],

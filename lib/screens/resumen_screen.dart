@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:convert';
 import '../services/permisos.dart';
 import '../services/movimientos_service.dart';
-
+import '../theme/app_theme.dart';
 
 class ResumenScreen extends StatefulWidget {
   const ResumenScreen({super.key});
@@ -78,8 +78,7 @@ class _ResumenScreenState extends State<ResumenScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('El libro de ${_meses[_mes - 1]} ya ha sido finalizado'),
-        backgroundColor: Colors.red,
-        duration: const Duration(seconds: 3),
+        backgroundColor: AppColors.egreso,
       ),
     );
   }
@@ -105,21 +104,18 @@ class _ResumenScreenState extends State<ResumenScreen> {
             TextField(
               controller: diaCtrl,
               keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: 'Dia (1 - $maxDias)',
-                border: const OutlineInputBorder(),
-              ),
+              decoration: InputDecoration(labelText: 'Dia (1 - $maxDias)'),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             TextField(
               controller: detalleCtrl,
-              decoration: const InputDecoration(labelText: 'Detalle', border: OutlineInputBorder()),
+              decoration: const InputDecoration(labelText: 'Detalle'),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             TextField(
               controller: montoCtrl,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Monto', border: OutlineInputBorder()),
+              decoration: const InputDecoration(labelText: 'Monto'),
             ),
           ],
         ),
@@ -133,20 +129,20 @@ class _ResumenScreenState extends State<ResumenScreen> {
               final dia = int.tryParse(diaCtrl.text) ?? 0;
               if (dia < 1 || dia > maxDias) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('El dia debe estar entre 1 y $maxDias'), backgroundColor: Colors.red),
+                  SnackBar(content: Text('El dia debe estar entre 1 y $maxDias'), backgroundColor: AppColors.egreso),
                 );
                 return;
               }
               final monto = double.tryParse(montoCtrl.text) ?? 0;
               if (monto <= 0) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('El monto debe ser mayor a 0'), backgroundColor: Colors.red),
+                  const SnackBar(content: Text('El monto debe ser mayor a 0'), backgroundColor: AppColors.egreso),
                 );
                 return;
               }
               if (detalleCtrl.text.trim().isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('El detalle no puede estar vacio'), backgroundColor: Colors.red),
+                  const SnackBar(content: Text('El detalle no puede estar vacio'), backgroundColor: AppColors.egreso),
                 );
                 return;
               }
@@ -163,7 +159,7 @@ class _ResumenScreenState extends State<ResumenScreen> {
               if (ctx.mounted) Navigator.pop(ctx);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: esIngreso ? Colors.green : Colors.red,
+              backgroundColor: esIngreso ? AppColors.ingreso : AppColors.egreso,
               foregroundColor: Colors.white,
             ),
             child: const Text('Guardar'),
@@ -173,18 +169,16 @@ class _ResumenScreenState extends State<ResumenScreen> {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     final permisos = RolProvider.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? Colors.grey.shade900 : const Color(0xFFF5F5F5);
-    final cardColor = isDark ? Colors.grey.shade800 : Colors.white;
+    final cardColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subtle = isDark ? Colors.grey.shade400 : Colors.grey.shade600;
 
     return Scaffold(
-      backgroundColor: bgColor,
       appBar: AppBar(
-        backgroundColor: Colors.indigo,
         title: StreamBuilder<DocumentSnapshot>(
           stream: _db.collection('configuracion').doc('iglesia').snapshots(),
           builder: (context, snapshot) {
@@ -197,29 +191,25 @@ class _ResumenScreenState extends State<ResumenScreen> {
                 children: [
                   if (logo != null)
                     CircleAvatar(
-                      radius: 18,
+                      radius: 16,
                       backgroundImage: MemoryImage(base64Decode(logo)),
                     )
                   else
-                    const Icon(Icons.church, color: Colors.white, size: 28),
-                  const SizedBox(width: 10),
+                    const Icon(Icons.church, color: Colors.white, size: 24),
+                  const SizedBox(width: AppSpacing.sm),
                   Flexible(
-                    child: Text(nombre,
-                      style: const TextStyle(color: Colors.white, fontSize: 18),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    child: Text(nombre, overflow: TextOverflow.ellipsis),
                   ),
                 ],
               );
             }
-            return const Text('Tesoreria Iglesia', style: TextStyle(color: Colors.white));
+            return const Text('Tesoreria Iglesia');
           },
         ),
-        centerTitle: true,
         actions: [
           if (_libroFinalizado)
             const Padding(
-              padding: EdgeInsets.only(right: 16),
+              padding: EdgeInsets.only(right: AppSpacing.lg),
               child: Row(
                 children: [
                   Icon(Icons.lock, color: Colors.white70, size: 16),
@@ -256,32 +246,33 @@ class _ResumenScreenState extends State<ResumenScreen> {
               }
             }
             saldo = saldoAnterior + ingresos - egresos;
-
             ultimos = docs.reversed.take(5).toList();
           }
 
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (_libroFinalizado)
                   Container(
                     width: double.infinity,
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                    padding: const EdgeInsets.all(AppSpacing.md),
                     decoration: BoxDecoration(
-                      color: Colors.red.shade900.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.red.shade300),
+                      color: AppColors.egreso.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      border: Border.all(color: AppColors.egreso.withValues(alpha: 0.4)),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.lock, color: Colors.red, size: 18),
-                        const SizedBox(width: 8),
-                        Text(
-                          'El libro de ${_meses[_mes - 1]} ya ha sido finalizado',
-                          style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w500),
+                        const Icon(Icons.lock, color: AppColors.egreso, size: 18),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: Text(
+                            'El libro de ${_meses[_mes - 1]} ya fue finalizado',
+                            style: const TextStyle(color: AppColors.egreso, fontWeight: FontWeight.w500),
+                          ),
                         ),
                       ],
                     ),
@@ -289,143 +280,127 @@ class _ResumenScreenState extends State<ResumenScreen> {
 
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.all(AppSpacing.xl),
                   decoration: BoxDecoration(
-                    color: Colors.indigo.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    'Mes activo: ${_meses[_mes - 1]} $_anio',
-                    style: const TextStyle(color: Colors.indigo, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.indigo,
-                    borderRadius: BorderRadius.circular(16),
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [AppColors.brand, AppColors.brandDark],
+                    ),
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.brand.withValues(alpha: 0.3),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
                   ),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Saldo Actual', style: TextStyle(color: Colors.white70, fontSize: 14)),
-                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(Icons.account_balance_wallet, color: Colors.white70, size: 18),
+                          const SizedBox(width: AppSpacing.sm),
+                          Text('Saldo actual',
+                              style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 14)),
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text('${_meses[_mes - 1]} $_anio',
+                                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500)),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.md),
                       Text(
                         _formatear(saldo),
-                        style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold),
+                        style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: AppSpacing.lg),
 
                 Row(
                   children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: isDark ? Colors.green.shade900.withOpacity(0.3) : Colors.green.shade50,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.green.shade300),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Ingresos', style: TextStyle(color: Colors.green, fontSize: 13)),
-                            const SizedBox(height: 6),
-                            Text(_formatear(ingresos),
-                              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green)),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: isDark ? Colors.red.shade900.withOpacity(0.3) : Colors.red.shade50,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.red.shade300),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Egresos', style: TextStyle(color: Colors.red, fontSize: 13)),
-                            const SizedBox(height: 6),
-                            Text(_formatear(egresos),
-                              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.red)),
-                          ],
-                        ),
-                      ),
-                    ),
+                    Expanded(child: _tarjetaTotal('Ingresos', ingresos, AppColors.ingreso, Icons.arrow_downward, cardColor, isDark)),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(child: _tarjetaTotal('Egresos', egresos, AppColors.egreso, Icons.arrow_upward, cardColor, isDark)),
                   ],
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: AppSpacing.xl),
 
                 Text('Ultimos movimientos',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : Colors.black87)),
-                const SizedBox(height: 12),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor)),
+                const SizedBox(height: AppSpacing.md),
 
                 if (ultimos.isEmpty)
-                  Text('No hay movimientos este mes',
-                    style: TextStyle(color: isDark ? Colors.grey.shade400 : Colors.grey)),
+                  _estadoVacio(subtle)
+                else
+                  ...ultimos.map((doc) {
+                    final m = doc.data() as Map<String, dynamic>;
+                    if (m['esSaldoAnterior'] == true) return const SizedBox.shrink();
+                    final esIngreso = m['ingreso'] != null;
+                    final monto = esIngreso ? m['ingreso'].toDouble() : m['egreso'].toDouble();
+                    final anulado = m['estado'] == 'Anulado';
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      decoration: BoxDecoration(
+                        color: cardColor,
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2)),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 20,
+                            backgroundColor: (esIngreso ? AppColors.ingreso : AppColors.egreso).withValues(alpha: 0.12),
+                            child: Icon(
+                              esIngreso ? Icons.arrow_downward : Icons.arrow_upward,
+                              color: esIngreso ? AppColors.ingreso : AppColors.egreso,
+                              size: 18,
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  m['detalle'] ?? '',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: textColor,
+                                    decoration: anulado ? TextDecoration.lineThrough : null,
+                                  ),
+                                ),
+                                Text('Dia ${m['dia']}', style: TextStyle(color: subtle, fontSize: 12)),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            '${esIngreso ? '+' : '-'}${_formatear(monto)}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: esIngreso ? AppColors.ingreso : AppColors.egreso,
+                              decoration: anulado ? TextDecoration.lineThrough : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
 
-                ...ultimos.map((doc) {
-                  final m = doc.data() as Map<String, dynamic>;
-                  if (m['esSaldoAnterior'] == true) return const SizedBox.shrink();
-                  final esIngreso = m['ingreso'] != null;
-                  final monto = esIngreso ? m['ingreso'].toDouble() : m['egreso'].toDouble();
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: cardColor,
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: [
-                        BoxShadow(color: Colors.black12, blurRadius: 4, offset: const Offset(0, 2))
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          backgroundColor: esIngreso ? Colors.green.shade100 : Colors.red.shade100,
-                          child: Icon(
-                            esIngreso ? Icons.arrow_upward : Icons.arrow_downward,
-                            color: esIngreso ? Colors.green : Colors.red,
-                            size: 18,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(m['detalle'] ?? '',
-                                style: TextStyle(fontWeight: FontWeight.w500,
-                                  color: isDark ? Colors.white : Colors.black87)),
-                              Text('Dia ${m['dia']}',
-                                style: TextStyle(color: isDark ? Colors.grey.shade400 : Colors.grey, fontSize: 12)),
-                            ],
-                          ),
-                        ),
-                        Text(
-                          '${esIngreso ? '+' : '-'}${_formatear(monto)}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: esIngreso ? Colors.green : Colors.red,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
-
-                const SizedBox(height: 24),
+                const SizedBox(height: AppSpacing.xl),
 
                 if (permisos.puedeIngresarEgresar)
                   Row(
@@ -436,22 +411,20 @@ class _ResumenScreenState extends State<ResumenScreen> {
                           icon: const Icon(Icons.add),
                           label: const Text('Ingreso'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: _libroFinalizado ? Colors.grey : Colors.green,
+                            backgroundColor: _libroFinalizado ? Colors.grey : AppColors.ingreso,
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: AppSpacing.md),
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: () => _mostrarFormulario(esIngreso: false),
                           icon: const Icon(Icons.remove),
                           label: const Text('Egreso'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: _libroFinalizado ? Colors.grey : Colors.red,
+                            backgroundColor: _libroFinalizado ? Colors.grey : AppColors.egreso,
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
                           ),
                         ),
                       ),
@@ -462,6 +435,57 @@ class _ResumenScreenState extends State<ResumenScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _tarjetaTotal(String titulo, double valor, Color color, IconData icono, Color cardColor, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icono, color: color, size: 16),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Text(titulo, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            _formatear(valor),
+            style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: color),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _estadoVacio(Color subtle) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+      child: Column(
+        children: [
+          Icon(Icons.receipt_long, size: 48, color: subtle.withValues(alpha: 0.5)),
+          const SizedBox(height: AppSpacing.md),
+          Text('Aun no hay movimientos este mes', style: TextStyle(color: subtle)),
+        ],
       ),
     );
   }

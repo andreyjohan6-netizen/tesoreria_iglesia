@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../theme/app_theme.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -20,7 +21,6 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = _emailCtrl.text.trim();
     final pass = _passCtrl.text.trim();
 
-    // Validacion de campos vacios antes de llamar a Firebase.
     if (email.isEmpty || pass.isEmpty) {
       setState(() => _error = 'Ingresa tu correo y tu contrasena');
       return;
@@ -32,7 +32,6 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      // setPersistence solo aplica en web; si falla no debe bloquear el login.
       try {
         await FirebaseAuth.instance.setPersistence(
           _recordarme ? Persistence.LOCAL : Persistence.SESSION,
@@ -43,7 +42,6 @@ class _LoginScreenState extends State<LoginScreen> {
         email: email,
         password: pass,
       );
-      // Exito: el StreamBuilder de authStateChanges se encarga de navegar.
     } on FirebaseAuthException catch (e) {
       setState(() => _error = _mensajeError(e.code));
     } catch (_) {
@@ -53,7 +51,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  /// Traduce el codigo de error de Firebase a un mensaje claro en espanol.
   String _mensajeError(String code) {
     switch (code) {
       case 'invalid-email':
@@ -81,114 +78,155 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.indigo,
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.church, size: 80, color: Colors.white),
-              const SizedBox(height: 16),
-              const Text(
-                'Tesoreria Iglesia',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Inicia sesion para continuar',
-                style: TextStyle(color: Colors.white70),
-              ),
-              const SizedBox(height: 40),
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                ),
+      body: Container(
+        width: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [AppColors.brand, AppColors.brandDark],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(AppSpacing.xl),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
                 child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    TextField(
-                      controller: _emailCtrl,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(
-                        labelText: 'Correo electronico',
-                        prefixIcon: Icon(Icons.email),
-                        border: OutlineInputBorder(),
+                    Container(
+                      width: 96,
+                      height: 96,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 2),
+                      ),
+                      child: const Icon(Icons.church, size: 48, color: Colors.white),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    const Text(
+                      'Tesoreria Iglesia',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.3,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: _passCtrl,
-                      obscureText: !_verContrasena,
-                      decoration: InputDecoration(
-                        labelText: 'Contrasena',
-                        prefixIcon: const Icon(Icons.lock),
-                        border: const OutlineInputBorder(),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _verContrasena ? Icons.visibility_off : Icons.visibility,
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      'Inicia sesion para continuar',
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.8)),
+                    ),
+                    const SizedBox(height: AppSpacing.xl),
+                    Container(
+                      padding: const EdgeInsets.all(AppSpacing.xl),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(AppRadius.lg),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.15),
+                            blurRadius: 24,
+                            offset: const Offset(0, 8),
                           ),
-                          onPressed: () => setState(() => _verContrasena = !_verContrasena),
-                        ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Checkbox(
-                          value: _recordarme,
-                          activeColor: Colors.indigo,
-                          onChanged: (v) => setState(() => _recordarme = v!),
-                        ),
-                        const Text('Recordarme en este dispositivo'),
-                      ],
-                    ),
-                    if (_error != null) ...[
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.red.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.red.shade200),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.error_outline, color: Colors.red, size: 18),
-                            const SizedBox(width: 8),
-                            Text(_error!, style: const TextStyle(color: Colors.red)),
+                      child: Column(
+                        children: [
+                          TextField(
+                            controller: _emailCtrl,
+                            keyboardType: TextInputType.emailAddress,
+                            textInputAction: TextInputAction.next,
+                            style: const TextStyle(color: Colors.black87),
+                            decoration: const InputDecoration(
+                              labelText: 'Correo electronico',
+                              prefixIcon: Icon(Icons.email_outlined),
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.lg),
+                          TextField(
+                            controller: _passCtrl,
+                            obscureText: !_verContrasena,
+                            textInputAction: TextInputAction.done,
+                            onSubmitted: (_) => _cargando ? null : _login(),
+                            style: const TextStyle(color: Colors.black87),
+                            decoration: InputDecoration(
+                              labelText: 'Contrasena',
+                              prefixIcon: const Icon(Icons.lock_outline),
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _verContrasena ? Icons.visibility_off : Icons.visibility,
+                                ),
+                                onPressed: () => setState(() => _verContrasena = !_verContrasena),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          Row(
+                            children: [
+                              Checkbox(
+                                value: _recordarme,
+                                activeColor: AppColors.brand,
+                                onChanged: (v) => setState(() => _recordarme = v!),
+                              ),
+                              const Expanded(
+                                child: Text(
+                                  'Recordarme en este dispositivo',
+                                  style: TextStyle(color: Colors.black87, fontSize: 13),
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (_error != null) ...[
+                            const SizedBox(height: AppSpacing.sm),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(AppSpacing.md),
+                              decoration: BoxDecoration(
+                                color: AppColors.egreso.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(AppRadius.sm),
+                                border: Border.all(color: AppColors.egreso.withValues(alpha: 0.4)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.error_outline, color: AppColors.egreso, size: 18),
+                                  const SizedBox(width: AppSpacing.sm),
+                                  Expanded(
+                                    child: Text(_error!, style: const TextStyle(color: AppColors.egreso)),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ],
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _cargando ? null : _login,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.indigo,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        child: _cargando
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text('Iniciar sesion', style: TextStyle(fontSize: 16)),
+                          const SizedBox(height: AppSpacing.xl),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 52,
+                            child: ElevatedButton(
+                              onPressed: _cargando ? null : _login,
+                              child: _cargando
+                                  ? const SizedBox(
+                                      height: 22,
+                                      width: 22,
+                                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                                    )
+                                  : const Text('Iniciar sesion', style: TextStyle(fontSize: 16)),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),
