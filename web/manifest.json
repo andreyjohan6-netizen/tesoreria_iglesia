@@ -1,32 +1,26 @@
 {
-    "name": "tesoreria_iglesia",
-    "short_name": "tesoreria_iglesia",
+    "name": "Tesoreria Iglesia",
+    "short_name": "Tesoreria",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#3F51B5",
+    "theme_color": "#3F51B5",
+    "description": "App de tesoreria para la iglesia: ingresos, egresos, libro mensual y reportes.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
         {
-            "src": "icons/Icon-192.png",
+            "src": "icons/logo.png",
             "sizes": "192x192",
             "type": "image/png"
         },
         {
-            "src": "icons/Icon-512.png",
+            "src": "icons/logo.png",
             "sizes": "512x512",
             "type": "image/png"
         },
         {
-            "src": "icons/Icon-maskable-192.png",
-            "sizes": "192x192",
-            "type": "image/png",
-            "purpose": "maskable"
-        },
-        {
-            "src": "icons/Icon-maskable-512.png",
+            "src": "icons/logo.png",
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "maskable"
