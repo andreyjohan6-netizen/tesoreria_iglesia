@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'dart:async';
 import 'dart:convert';
 import 'dart:html' as html;
 import '../services/permisos.dart';
@@ -518,54 +517,64 @@ class _LibroScreenState extends State<LibroScreen> {
   }
 
   Future<String?> _capturarYComprimir() async {
-    final completer = Completer<String?>();
     final input = html.FileUploadInputElement()..accept = 'image/*';
+    input.style.display = 'none';
+    html.document.body?.append(input);
     input.click();
 
-    input.onChange.listen((event) {
+    try {
+      await input.onChange.first;
       final file = input.files?.isNotEmpty == true ? input.files!.first : null;
-      if (file == null) {
-        completer.complete(null);
-        return;
-      }
+      if (file == null) return null;
+
       final reader = html.FileReader();
       reader.readAsDataUrl(file);
-      reader.onLoad.listen((event) {
-        final dataUrl = reader.result as String;
-        final img = html.ImageElement(src: dataUrl);
-        img.onLoad.listen((event) {
-          const maxLado = 1000;
-          int w = img.naturalWidth;
-          int h = img.naturalHeight;
-          if (w >= h && w > maxLado) {
-            h = (h * maxLado / w).round();
-            w = maxLado;
-          } else if (h > w && h > maxLado) {
-            w = (w * maxLado / h).round();
-            h = maxLado;
-          }
-          final canvas = html.CanvasElement(width: w, height: h);
-          canvas.context2D.drawImageScaled(img, 0, 0, w, h);
-          completer.complete(canvas.toDataUrl('image/jpeg', 0.6).split(',').last);
-        });
-        img.onError.listen((event) => completer.complete(null));
-      });
-    });
+      await reader.onLoad.first;
+      final dataUrl = reader.result as String;
 
-    return completer.future;
+      final img = html.ImageElement(src: dataUrl);
+      await img.onLoad.first;
+
+      const maxLado = 1000;
+      int w = img.naturalWidth;
+      int h = img.naturalHeight;
+      if (w >= h && w > maxLado) {
+        h = (h * maxLado / w).round();
+        w = maxLado;
+      } else if (h > w && h > maxLado) {
+        w = (w * maxLado / h).round();
+        h = maxLado;
+      }
+      final canvas = html.CanvasElement(width: w, height: h);
+      canvas.context2D.drawImageScaled(img, 0, 0, w, h);
+      return canvas.toDataUrl('image/jpeg', 0.6).split(',').last;
+    } catch (_) {
+      return null;
+    } finally {
+      input.remove();
+    }
   }
 
   Future<void> _adjuntarComprobante(QueryDocumentSnapshot doc) async {
-    final base64Img = await _capturarYComprimir();
-    if (base64Img == null) return;
-    await _db.collection('comprobantes').doc(doc.id).set({'imagen': base64Img});
-    await doc.reference.update({'tieneComprobante': true});
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Comprobante adjuntado'), backgroundColor: AppColors.ingreso),
-      );
+    try {
+      final base64Img = await _capturarYComprimir();
+      if (base64Img == null) return;
+      await _db.collection('comprobantes').doc(doc.id).set({'imagen': base64Img});
+      await doc.reference.update({'tieneComprobante': true});
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Comprobante adjuntado'), backgroundColor: AppColors.ingreso),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo guardar el comprobante. Intenta de nuevo.'), backgroundColor: AppColors.egreso),
+        );
+      }
     }
   }
+
 
   Future<void> _verComprobante(String movId) async {
     final snap = await _db.collection('comprobantes').doc(movId).get();
@@ -815,7 +824,9 @@ class _LibroScreenState extends State<LibroScreen> {
                                 style: TextStyle(color: isDark ? Colors.grey.shade400 : Colors.grey)))
                             : SingleChildScrollView(
                                 scrollDirection: Axis.vertical,
+                                padding: const EdgeInsets.only(bottom: 96),
                                 child: SingleChildScrollView(
+
                                   scrollDirection: Axis.horizontal,
                                   child: DataTable(
                                     showCheckboxColumn: false,

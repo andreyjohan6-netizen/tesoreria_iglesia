@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:html' as html;
 import 'firebase_options.dart';
 import 'services/permisos.dart';
 import 'theme/app_theme.dart';
@@ -40,11 +40,22 @@ class TesoreriaApp extends StatefulWidget {
 class _TesoreriaAppState extends State<TesoreriaApp> {
   ThemeMode _themeMode = ThemeMode.light;
 
+  @override
+  void initState() {
+    super.initState();
+    // Recordar la preferencia de tema en este dispositivo.
+    if (html.window.localStorage['tema'] == 'oscuro') {
+      _themeMode = ThemeMode.dark;
+    }
+  }
+
   void toggleTheme(bool isDark) {
     setState(() {
       _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
     });
+    html.window.localStorage['tema'] = isDark ? 'oscuro' : 'claro';
   }
+
 
   @override
   Widget build(BuildContext context) {
