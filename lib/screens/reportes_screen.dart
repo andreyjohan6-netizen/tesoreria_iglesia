@@ -3,7 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:convert';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 import 'package:excel/excel.dart' hide Border;
 import 'dart:html' as html;
 import '../theme/app_theme.dart';
@@ -192,8 +191,29 @@ class _ReportesScreenState extends State<ReportesScreen> {
         ],
       ),
     );
-    await Printing.layoutPdf(onLayout: (format) async => pdf.save());
+    final bytes = await pdf.save();
+    final filename = 'tesoreria_${_meses[_mesSeleccionado - 1]}_$_anioSeleccionado.pdf';
+
+    // 1) iPhone/Android: menu de compartir nativo (Guardar en Archivos, Imprimir, etc.)
+    try {
+      final file = html.File([bytes], filename, {'type': 'application/pdf'});
+      await html.window.navigator.share({'files': [file], 'title': filename});
+      return;
+    } catch (_) {}
+
+    // 2) Respaldo: abrir en ventana (PC y iPhone con ventanas permitidas).
+    final blob = html.Blob([bytes], 'application/pdf');
+    final url = html.Url.createObjectUrlFromBlob(blob);
+    final ventana = html.window.open(url, '_blank');
+    if (ventana == null) {
+      html.AnchorElement(href: url)
+        ..setAttribute('download', filename)
+        ..click();
+    }
+    Future.delayed(const Duration(minutes: 1), () => html.Url.revokeObjectUrl(url));
   }
+
+
 
   Future<void> _exportarExcel(List<QueryDocumentSnapshot> docs) async {
     final excel = Excel.createExcel();
@@ -364,12 +384,21 @@ class _ReportesScreenState extends State<ReportesScreen> {
                       child: ElevatedButton.icon(
                         onPressed: _mesFinalizado
                             ? () async {
-                                final docs = await _obtenerMovimientosMes(_mesSeleccionado, _anioSeleccionado);
-                                await _exportarPDF(docs);
+                                try {
+                                  final docs = await _obtenerMovimientosMes(_mesSeleccionado, _anioSeleccionado);
+                                  await _exportarPDF(docs);
+                                } catch (e) {
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('No se pudo generar el PDF: $e'), backgroundColor: AppColors.egreso),
+                                    );
+                                  }
+                                }
                               }
                             : _avisoNoFinalizado,
                         icon: const Icon(Icons.picture_as_pdf),
                         label: const Text('PDF'),
+
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _mesFinalizado ? AppColors.egreso : Colors.grey,
                           foregroundColor: Colors.white,
