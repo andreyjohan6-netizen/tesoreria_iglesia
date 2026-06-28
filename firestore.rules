@@ -1,0 +1,46 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function adminEmail() { return 'andreyjohan6@gmail.com'; }
+    function userEmail() { return signedIn() ? request.auth.token.email : ''; }
+    function isAdminEmail() { return userEmail() == adminEmail(); }
+    function isRegistered() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/usuarios_autorizados/$(userEmail()));
+    }
+    function authorized() { return isAdminEmail() || isRegistered(); }
+    function role() {
+      return isAdminEmail() ? 'admin'
+        : (isRegistered()
+            ? get(/databases/$(database)/documents/usuarios_autorizados/$(userEmail())).data.rol
+            : 'none');
+    }
+    function isAdmin() { return role() == 'admin'; }
+    function puedeRegistrar() { return role() == 'admin' || role() == 'tesorero'; }
+
+    match /configuracion/{doc} {
+      allow read: if authorized();
+      allow write: if isAdmin();
+    }
+    match /movimientos/{doc} {
+      allow read: if authorized();
+      allow create, update: if puedeRegistrar();
+      allow delete: if isAdmin();
+    }
+    match /libros_finalizados/{doc} {
+      allow read: if authorized();
+      allow create: if puedeRegistrar();
+      allow update, delete: if isAdmin();
+    }
+    match /comprobantes/{doc} {
+      allow read: if authorized();
+      allow write: if puedeRegistrar();
+    }
+    match /usuarios_autorizados/{doc} {
+      allow read: if authorized();
+      allow write: if isAdmin();
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}
