@@ -186,6 +186,22 @@ class _LibroScreenState extends State<LibroScreen> {
                 return;
               }
 
+              // No permitir un egreso mayor al saldo disponible.
+              if (!esIngreso) {
+                final messenger = ScaffoldMessenger.of(context);
+                final saldoDisponible = await MovimientosService.saldoActual(_mesSeleccionado, _anioSeleccionado);
+                if (monto > saldoDisponible) {
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text(
+                          'El egreso no puede ser mayor al saldo disponible (${_formatear(saldoDisponible)})'),
+                      backgroundColor: AppColors.egreso,
+                    ),
+                  );
+                  return;
+                }
+              }
+
               await MovimientosService.agregarMovimiento(
                 esIngreso: esIngreso,
                 dia: dia,
@@ -194,6 +210,7 @@ class _LibroScreenState extends State<LibroScreen> {
                 mes: _mesSeleccionado,
                 anio: _anioSeleccionado,
               );
+
 
               if (ctx.mounted) Navigator.pop(ctx);
             },

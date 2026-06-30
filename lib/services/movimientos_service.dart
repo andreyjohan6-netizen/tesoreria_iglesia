@@ -50,6 +50,26 @@ class MovimientosService {
 
     await batch.commit();
   }
+  /// Calcula el saldo disponible actual de un mes (saldo anterior + ingresos
+  /// activos - egresos activos). Sirve para validar antes de registrar.
+  static Future<double> saldoActual(int mes, int anio) async {
+    final snap = await _db
+        .collection('movimientos')
+        .where('mes', isEqualTo: mes)
+        .where('anio', isEqualTo: anio)
+        .get();
+
+    double saldo = 0;
+    for (final doc in snap.docs) {
+      final m = doc.data();
+      if (m['esSaldoAnterior'] == true) {
+        saldo += (m['ingreso'] ?? 0).toDouble();
+      } else if ((m['estado'] ?? 'Activo') == 'Activo') {
+        saldo += (m['ingreso'] ?? 0).toDouble() - (m['egreso'] ?? 0).toDouble();
+      }
+    }
+    return saldo;
+  }
 
   /// Calcula el siguiente folio continuo (global) para un tipo dado.
   static Future<Map<String, dynamic>> _siguienteFolio(bool esIngreso) async {
