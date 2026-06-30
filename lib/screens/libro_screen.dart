@@ -822,13 +822,16 @@ class _LibroScreenState extends State<LibroScreen> {
                         : movimientosFiltrados.isEmpty
                             ? Center(child: Text('No hay resultados para tu busqueda',
                                 style: TextStyle(color: isDark ? Colors.grey.shade400 : Colors.grey)))
-                            : SingleChildScrollView(
+                            : LayoutBuilder(
+                                builder: (context, constraints) => SingleChildScrollView(
                                 scrollDirection: Axis.vertical,
                                 padding: const EdgeInsets.only(bottom: 96),
                                 child: SingleChildScrollView(
-
                                   scrollDirection: Axis.horizontal,
+                                  child: ConstrainedBox(
+                                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
                                   child: DataTable(
+
                                     showCheckboxColumn: false,
                                     headingRowColor: WidgetStateProperty.all(AppColors.brand),
                                     dataRowColor: WidgetStateProperty.all(cardColor),
@@ -900,9 +903,12 @@ class _LibroScreenState extends State<LibroScreen> {
                                       );
                                     }).toList(),
                                   ),
+                                  ),
                                 ),
                               ),
+                              ),
               ),
+
             ],
           );
         },

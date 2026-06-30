@@ -16,14 +16,6 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  runApp(const TesoreriaApp());
-}
-
   runApp(const TesoreriaApp());
 }
 
@@ -43,7 +35,6 @@ class _TesoreriaAppState extends State<TesoreriaApp> {
   @override
   void initState() {
     super.initState();
-    // Recordar la preferencia de tema en este dispositivo.
     if (html.window.localStorage['tema'] == 'oscuro') {
       _themeMode = ThemeMode.dark;
     }
@@ -56,17 +47,16 @@ class _TesoreriaAppState extends State<TesoreriaApp> {
     html.window.localStorage['tema'] = isDark ? 'oscuro' : 'claro';
   }
 
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Tesoreria Iglesia',
       themeMode: _themeMode,
-      theme: AppTheme.light,
+            theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-
       home: StreamBuilder<User?>(
+
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -75,7 +65,6 @@ class _TesoreriaAppState extends State<TesoreriaApp> {
             );
           }
           if (snapshot.hasData) {
-            // Usuario autenticado: verificamos si esta autorizado y su rol.
             return FutureBuilder<Acceso>(
               future: RolService.verificarAcceso(snapshot.data!.email),
               builder: (context, accesoSnapshot) {
@@ -85,7 +74,6 @@ class _TesoreriaAppState extends State<TesoreriaApp> {
                   );
                 }
                 final acceso = accesoSnapshot.data;
-                // Si no se pudo verificar o no esta autorizado, se bloquea.
                 if (acceso == null || !acceso.autorizado) {
                   return NoAutorizadoScreen(correo: snapshot.data!.email);
                 }
@@ -119,6 +107,49 @@ class _MainScreenState extends State<MainScreen> {
     const ReportesScreen(),
     const ConfiguracionScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _mostrarBienvenida());
+  }
+
+  void _mostrarBienvenida() {
+    if (!mounted) return;
+    final permisos = RolProvider.of(context);
+    final correo = FirebaseAuth.instance.currentUser?.email ?? '';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.celebration, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '¡Bienvenido/a!',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                  Text(
+                    correo.isEmpty
+                        ? 'Has iniciado sesión como ${permisos.nombreRol}'
+                        : '$correo · ${permisos.nombreRol}',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.indigo,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

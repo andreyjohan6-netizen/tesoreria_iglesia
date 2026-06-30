@@ -19,8 +19,8 @@ service cloud.firestore {
     function isAdmin() { return role() == 'admin'; }
     function puedeRegistrar() { return role() == 'admin' || role() == 'tesorero'; }
 
-    match /configuracion/{doc} {
-      allow read: if authorized();
+      match /configuracion/{doc} {
+      allow read: if true;
       allow write: if isAdmin();
     }
     match /movimientos/{doc} {

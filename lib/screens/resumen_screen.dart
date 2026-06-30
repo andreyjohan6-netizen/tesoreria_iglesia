@@ -200,10 +200,23 @@ class _ResumenScreenState extends State<ResumenScreen> {
                   Flexible(
                     child: Text(nombre, overflow: TextOverflow.ellipsis),
                   ),
+                  const SizedBox(width: AppSpacing.sm),
+                  _rolBadge(permisos.nombreRol),
                 ],
               );
             }
-            return const Text('Tesoreria Iglesia');
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.church, color: Colors.white, size: 24),
+                const SizedBox(width: AppSpacing.sm),
+                const Flexible(
+                  child: Text('Tesoreria Iglesia', overflow: TextOverflow.ellipsis),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                _rolBadge(permisos.nombreRol),
+              ],
+            );
           },
         ),
         actions: [
@@ -486,6 +499,26 @@ class _ResumenScreenState extends State<ResumenScreen> {
           const SizedBox(height: AppSpacing.md),
           Text('Aun no hay movimientos este mes', style: TextStyle(color: subtle)),
         ],
+      ),
+    );
+  }
+
+  /// Etiqueta que muestra el rol del usuario (Tesorero, Pastor, etc.)
+  /// junto al nombre de la iglesia en la barra superior.
+  Widget _rolBadge(String rol) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.22),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        rol,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

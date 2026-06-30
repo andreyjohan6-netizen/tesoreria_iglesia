@@ -212,38 +212,128 @@ class _ReportesScreenState extends State<ReportesScreen> {
     }
     Future.delayed(const Duration(minutes: 1), () => html.Url.revokeObjectUrl(url));
   }
-
-
-
   Future<void> _exportarExcel(List<QueryDocumentSnapshot> docs) async {
+    // Datos de la iglesia y totales (igual que en el PDF).
+    final configDoc = await _db.collection('configuracion').doc('iglesia').get();
+    final cfg = configDoc.data() ?? {};
+    final nombre = (cfg['nombre'] ?? 'Tesoreria Iglesia').toString();
+
+    double saldoAnterior = 0;
+    double totalIngresos = 0;
+    double totalEgresos = 0;
+    for (final doc in docs) {
+      final m = doc.data() as Map<String, dynamic>;
+      if (m['esSaldoAnterior'] == true) {
+        saldoAnterior = (m['ingreso'] ?? 0).toDouble();
+      } else {
+        if (m['ingreso'] != null) totalIngresos += m['ingreso'].toDouble();
+        if (m['egreso'] != null) totalEgresos += m['egreso'].toDouble();
+      }
+    }
+    final saldoFinal = saldoAnterior + totalIngresos - totalEgresos;
+
     final excel = Excel.createExcel();
     final sheet = excel['Tesoreria'];
-    sheet.appendRow([
-      TextCellValue('Dia'),
-      TextCellValue('Detalle'),
-      TextCellValue('Ingreso'),
-      TextCellValue('Egreso'),
-      TextCellValue('Saldo'),
-      TextCellValue('Folio'),
-      TextCellValue('Estado'),
-    ]);
-    for (var doc in docs) {
-      final m = doc.data() as Map<String, dynamic>;
-      sheet.appendRow([
-        TextCellValue(m['dia'].toString()),
-        TextCellValue(m['detalle'] ?? ''),
-        TextCellValue(m['ingreso'] != null ? m['ingreso'].toString() : '-'),
-        TextCellValue(m['egreso'] != null ? m['egreso'].toString() : '-'),
-        TextCellValue((m['saldo'] ?? 0).toString()),
-        TextCellValue(m['folio']?.toString() ?? '-'),
-        TextCellValue(m['estado'] ?? 'Activo'),
-      ]);
+
+    // --- Estilos (mismo look del PDF) ---
+    final estiloTitulo = CellStyle(
+      bold: true,
+      fontSize: 16,
+      fontColorHex: ExcelColor.indigo,
+      verticalAlign: VerticalAlign.Center,
+    );
+    final estiloSubtitulo = CellStyle(
+      fontSize: 11,
+      fontColorHex: ExcelColor.black54,
+    );
+    final estiloHeader = CellStyle(
+      bold: true,
+      fontColorHex: ExcelColor.white,
+      backgroundColorHex: ExcelColor.indigo,
+      horizontalAlign: HorizontalAlign.Center,
+      verticalAlign: VerticalAlign.Center,
+    );
+    CellStyle celda(HorizontalAlign align) =>
+        CellStyle(horizontalAlign: align, verticalAlign: VerticalAlign.Center);
+    final estiloTotal = CellStyle(horizontalAlign: HorizontalAlign.Right);
+    final estiloSaldoFinal = CellStyle(
+      bold: true,
+      fontSize: 13,
+      horizontalAlign: HorizontalAlign.Right,
+    );
+    final estiloFirma = CellStyle(horizontalAlign: HorizontalAlign.Center);
+
+    CellIndex cr(int c, int r) =>
+        CellIndex.indexByColumnRow(columnIndex: c, rowIndex: r);
+    void poner(int c, int r, String texto, [CellStyle? estilo]) {
+      final cell = sheet.cell(cr(c, r));
+      cell.value = TextCellValue(texto);
+      if (estilo != null) cell.cellStyle = estilo;
     }
+
+    sheet.setColumnWidth(0, 8);
+    sheet.setColumnWidth(1, 32);
+    sheet.setColumnWidth(2, 15);
+    sheet.setColumnWidth(3, 15);
+    sheet.setColumnWidth(4, 16);
+    sheet.setColumnWidth(5, 10);
+
+    sheet.merge(cr(0, 0), cr(5, 0), customValue: TextCellValue(nombre));
+    sheet.cell(cr(0, 0)).cellStyle = estiloTitulo;
+    sheet.merge(
+      cr(0, 1),
+      cr(5, 1),
+      customValue: TextCellValue(
+          'Libro de Tesoreria - ${_meses[_mesSeleccionado - 1]} $_anioSeleccionado'),
+    );
+    sheet.cell(cr(0, 1)).cellStyle = estiloSubtitulo;
+
+    const headers = ['Dia', 'Detalle', 'Ingreso', 'Egreso', 'Saldo', 'Folio'];
+    for (var c = 0; c < headers.length; c++) {
+      poner(c, 3, headers[c], estiloHeader);
+    }
+
+    var fila = 4;
+    for (final doc in docs) {
+      final m = doc.data() as Map<String, dynamic>;
+      poner(0, fila, m['dia'].toString(), celda(HorizontalAlign.Center));
+      poner(1, fila, (m['detalle'] ?? '').toString(), celda(HorizontalAlign.Left));
+      poner(2, fila, m['ingreso'] != null ? _formatear(m['ingreso'].toDouble()) : '-',
+          celda(HorizontalAlign.Right));
+      poner(3, fila, m['egreso'] != null ? _formatear(m['egreso'].toDouble()) : '-',
+          celda(HorizontalAlign.Right));
+      poner(4, fila, _formatear((m['saldo'] ?? 0).toDouble()),
+          celda(HorizontalAlign.Right));
+      poner(5, fila, m['folio']?.toString() ?? '-', celda(HorizontalAlign.Center));
+      fila++;
+    }
+
+    fila += 1;
+    poner(3, fila, 'Total Ingresos:', estiloTotal);
+    poner(4, fila, _formatear(totalIngresos), estiloTotal);
+    fila++;
+    poner(3, fila, 'Total Egresos:', estiloTotal);
+    poner(4, fila, _formatear(totalEgresos), estiloTotal);
+    fila++;
+    poner(3, fila, 'Saldo Final:', estiloSaldoFinal);
+    poner(4, fila, _formatear(saldoFinal), estiloSaldoFinal);
+
+    fila += 3;
+    poner(1, fila, '___________________', estiloFirma);
+    poner(4, fila, '___________________', estiloFirma);
+    fila++;
+    poner(1, fila, 'Tesorero/a', estiloFirma);
+    poner(4, fila, 'Pastor/a', estiloFirma);
+
+    excel.delete('Sheet1');
+
     final bytes = excel.encode()!;
-    final blob = html.Blob([bytes], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    final blob = html.Blob([bytes],
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     final url = html.Url.createObjectUrlFromBlob(blob);
-    final anchor = html.AnchorElement(href: url)
-      ..setAttribute('download', 'tesoreria_${_meses[_mesSeleccionado - 1]}_$_anioSeleccionado.xlsx')
+    html.AnchorElement(href: url)
+      ..setAttribute('download',
+          'tesoreria_${_meses[_mesSeleccionado - 1]}_$_anioSeleccionado.xlsx')
       ..click();
     html.Url.revokeObjectUrl(url);
   }
@@ -349,7 +439,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
                 _tarjetaResumen(_meses[_mesSeleccionado - 1], ingresosMes, egresosMes, saldoMes, cardColor, textColor),
                 const SizedBox(height: AppSpacing.lg),
 
-                Text('Resumen del ano', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor)),
+                Text('Resumen del año', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor)),
                 const SizedBox(height: AppSpacing.sm),
                 _tarjetaResumen(_anioSeleccionado.toString(), ingresosAnio, egresosAnio, saldoAnio, cardColor, textColor),
                 const SizedBox(height: AppSpacing.xl),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:convert';
 import '../theme/app_theme.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -16,6 +18,12 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _recordarme = true;
   bool _verContrasena = false;
   String? _error;
+
+  // Lee una sola vez el nombre y el logo de la iglesia (configuracion).
+  final _configFuture = FirebaseFirestore.instance
+      .collection('configuracion')
+      .doc('iglesia')
+      .get();
 
   Future<void> _login() async {
     final email = _emailCtrl.text.trim();
@@ -99,25 +107,62 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Container(
-                      width: 96,
-                      height: 96,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.15),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 2),
-                      ),
-                      child: const Icon(Icons.church, size: 48, color: Colors.white),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    const Text(
-                      'Tesoreria Iglesia',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.3,
-                      ),
+                    FutureBuilder<DocumentSnapshot>(
+                      future: _configFuture,
+                      builder: (context, snap) {
+                        String? logo;
+                        String nombre = 'Tesoreria Iglesia';
+                        if (snap.hasData && snap.data!.exists) {
+                          final data = snap.data!.data() as Map<String, dynamic>;
+                          logo = data['logo'];
+                          nombre = (data['nombre'] ?? 'Tesoreria Iglesia').toString();
+                        }
+                        return Column(
+                          children: [
+                            Container(
+                              width: 96,
+                              height: 96,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.15),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.4), width: 2),
+                                image: logo != null
+                                    ? DecorationImage(
+                                        image: MemoryImage(base64Decode(logo)),
+                                        fit: BoxFit.cover,
+                                      )
+                                    : null,
+                              ),
+                              child: logo == null
+                                  ? const Icon(Icons.church, size: 48, color: Colors.white)
+                                  : null,
+                            ),
+                            const SizedBox(height: AppSpacing.lg),
+                            const Text(
+                              'Tesorería',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                            const SizedBox(height: AppSpacing.xs),
+                            Text(
+                              nombre,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.9),
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+
+                          ],
+                        );
+                      },
                     ),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
