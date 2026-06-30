@@ -43,5 +43,22 @@
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
   <script src="flutter_bootstrap.js" async></script>
+  
+  <!-- Auto-actualizacion: busca versiones nuevas y recarga sola al encontrarlas. -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(function (reg) {
+        reg.update();
+        setInterval(function () { reg.update(); }, 60000);
+      });
+      var __recargando = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (__recargando) return;
+        __recargando = true;
+        window.location.reload();
+      });
+    }
+  </script>
+
 </body>
 </html>

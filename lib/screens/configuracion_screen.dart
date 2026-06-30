@@ -271,8 +271,70 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
     );
   }
 
+  /// Descarga TODA la base de datos en un archivo JSON (respaldo completo).
+  Future<void> _descargarRespaldo() async {
+    try {
+      final respaldo = <String, dynamic>{
+        'generado': DateTime.now().toIso8601String(),
+        'colecciones': <String, dynamic>{},
+      };
+      const colecciones = [
+        'configuracion',
+        'movimientos',
+        'libros_finalizados',
+        'comprobantes',
+        'usuarios_autorizados',
+      ];
+      for (final nombre in colecciones) {
+        final snap = await _db.collection(nombre).get();
+        respaldo['colecciones'][nombre] = snap.docs
+            .map((d) => {'id': d.id, 'datos': _serializar(d.data())})
+            .toList();
+      }
+
+      final jsonStr = const JsonEncoder.withIndent('  ').convert(respaldo);
+      final bytes = utf8.encode(jsonStr);
+      final blob = html.Blob([bytes], 'application/json');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final f = DateTime.now();
+      final nombreArchivo =
+          'respaldo_tesoreria_${f.year}-${f.month.toString().padLeft(2, '0')}-${f.day.toString().padLeft(2, '0')}.json';
+      html.AnchorElement(href: url)
+        ..setAttribute('download', nombreArchivo)
+        ..click();
+      html.Url.revokeObjectUrl(url);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Respaldo descargado. Guardalo en un lugar seguro.'),
+          backgroundColor: AppColors.ingreso,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo generar el respaldo. Intenta de nuevo.'),
+          backgroundColor: AppColors.egreso,
+        ),
+      );
+    }
+  }
+
+  /// Convierte valores no serializables (Timestamp) a texto para el JSON.
+  Map<String, dynamic> _serializar(Map<String, dynamic> datos) {
+    final salida = <String, dynamic>{};
+    datos.forEach((clave, valor) {
+      salida[clave] =
+          valor is Timestamp ? valor.toDate().toIso8601String() : valor;
+    });
+    return salida;
+  }
+
   @override
   Widget build(BuildContext context) {
+
     final permisos = RolProvider.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
@@ -426,7 +488,16 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                 textColor: textColor,
                 onTap: _administrarUsuarios,
               ),
+              const SizedBox(height: AppSpacing.sm),
+              _botonOpcion(
+                icono: Icons.cloud_download,
+                texto: 'Descargar respaldo completo',
+                cardColor: cardColor,
+                textColor: textColor,
+                onTap: _descargarRespaldo,
+              ),
             ],
+
             const SizedBox(height: AppSpacing.xl),
 
             if (permisos.puedeEditarConfiguracion)
